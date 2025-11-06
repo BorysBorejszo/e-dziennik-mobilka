@@ -1,9 +1,7 @@
-import { SafeAreaView, Text } from "react-native";
+// This file is intentionally left without a default React export so that
+// the Expo Router does not register a duplicate `/settings` screen.
+// The actual settings UI lives under `app/settings/index.tsx` and is
+// nested inside `app/settings/_layout.tsx`.
 
-export default function Settings() {
-  return (
-    <SafeAreaView className="flex-1 bg-black items-center justify-center">
-      <Text className="text-white text-lg">Settings (placeholder)</Text>
-    </SafeAreaView>
-  );
-}
+export const __deprecated_settings_file = true;
+

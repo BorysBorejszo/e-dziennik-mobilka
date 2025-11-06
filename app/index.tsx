@@ -42,14 +42,6 @@ export default function App() {
             <View className="mt-3 border-gray-700 border rounded-xl w-full h-96 bg-black " />
           </View>
 
-          
-
-
-
-
-
-
-
         </View>
       </ScrollView>
     </SafeAreaView>

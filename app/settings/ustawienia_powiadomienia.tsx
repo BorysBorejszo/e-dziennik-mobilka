@@ -17,17 +17,17 @@ export default function UstawieniaPowiadomienia() {
 
 	return (
 		<SafeAreaView className="flex-1 bg-black px-4 pt-6">
-			<View className="flex-row items-center mb-4">
+			<View className="flex-row items-center mb-4 mt-4 ">
 				<TouchableOpacity onPress={() => router.back()} className="mr-4">
-					<Text className="text-blue-400">◀</Text>
+					<Text className="text-blue-400 ml-4 text-2xl">◀</Text>
 				</TouchableOpacity>
 				<Text className="text-white text-2xl font-bold">Powiadomienia</Text>
 			</View>
 
-			<Text className="text-gray-300 mb-4">Zarządzaj ustawieniami powiadomień: dźwięki, banery i harmonogramy.</Text>
+			<Text className="text-gray-300 mb-4 ml-4">Zarządzaj ustawieniami powiadomień: dźwięki, banery i harmonogramy.</Text>
 
 			<ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-				<GlassCard className="mb-4">
+				<GlassCard className="mb-4 ml-4 mr-4">
 					<View className="flex-row items-center justify-between">
 						<Text className="text-white text-lg">Dźwięki</Text>
 						<Switch
@@ -43,7 +43,7 @@ export default function UstawieniaPowiadomienia() {
 					</View>
 				</GlassCard>
 
-				<GlassCard className="mb-4">
+				<GlassCard className="mb-4 ml-4 mr-4">
 					<View className="flex-row items-center justify-between">
 						<Text className="text-white text-lg">Banery</Text>
 						<Switch
@@ -59,7 +59,7 @@ export default function UstawieniaPowiadomienia() {
 					</View>
 				</GlassCard>
 
-				<GlassCard className="mb-4">
+				<GlassCard className="mb-4 ml-4 mr-4">
 					<View className="flex-row items-center justify-between">
 						<Text className="text-white text-lg">Harmonogram</Text>
 						<Switch

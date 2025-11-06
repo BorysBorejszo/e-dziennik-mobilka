@@ -1,9 +1,11 @@
+
+import React from "react";
 import { SafeAreaView, Text } from "react-native";
 
-export default function Schedule() {
+export default function Grades() {
   return (
     <SafeAreaView className="flex-1 bg-black items-center justify-center">
-      <Text className="text-white text-lg">Schedule screen (placeholder)</Text>
+      <Text className="text-white text-lg">Grades (placeholder)</Text>
     </SafeAreaView>
   );
 }

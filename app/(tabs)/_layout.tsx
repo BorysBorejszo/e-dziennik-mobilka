@@ -1,9 +1,10 @@
 import Entypo from "@expo/vector-icons/Entypo";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Tabs, useRouter, useSegments } from "expo-router";
-import "./globals.css";
+import "../globals.css";
 import { PanGestureHandler, State, GestureHandlerRootView } from "react-native-gesture-handler";
 import { View } from "react-native";
+import React from "react";
 
 export default function Layout() {
   const router = useRouter();

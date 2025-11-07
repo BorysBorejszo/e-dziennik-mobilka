@@ -6,6 +6,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AntDesign from '@expo/vector-icons/AntDesign';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from "react";
+import { SidebarTrigger } from "../components/ui/sidebar";
 
 export default function Settings() {
   const router = useRouter();
@@ -16,8 +17,15 @@ export default function Settings() {
         showsVerticalScrollIndicator={false}
       >
         <View className="px-4">
-          <Text className="text-white text-3xl font-bold">Ustawienia</Text>
-          <Text className="text-gray-400 text-lg">Zarządzaj swoimi ustawieniami</Text>
+          <View className="flex-row items-start">
+            <SidebarTrigger style={{ marginRight: 10, marginTop: 2 }}>
+              <Entypo name="menu" size={24} color="#60A5FA" />
+            </SidebarTrigger>
+            <View>
+              <Text className="text-white text-3xl font-bold">Ustawienia</Text>
+              <Text className="text-gray-400 text-lg">Zarządzaj swoimi ustawieniami</Text>
+            </View>
+          </View>
         </View>
 
         <View className="px-4 mt-6">

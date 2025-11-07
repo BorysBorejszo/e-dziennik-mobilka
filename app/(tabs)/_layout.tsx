@@ -3,9 +3,11 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Tabs, useRouter, useSegments } from "expo-router";
 import "../globals.css";
 import { PanGestureHandler, State, GestureHandlerRootView } from "react-native-gesture-handler";
-import { View } from "react-native";
+import { View, SafeAreaView } from "react-native";
 import React from "react";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
+import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar";
+import AppSidebar from "../components/app-sidebar";
 
 
 export default function Layout() {
@@ -44,10 +46,16 @@ export default function Layout() {
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <PanGestureHandler onHandlerStateChange={onGestureEvent} activeOffsetX={[-10, 10]}>
-        <View style={{ flex: 1 }}>
-          <Tabs
+    <SidebarProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <PanGestureHandler onHandlerStateChange={onGestureEvent} activeOffsetX={[-10, 10]}>
+          <View style={{ flex: 1 }}>
+            {/* App Sidebar (sliding drawer) */}
+            <AppSidebar />
+
+            {/* Trigger removed from top — triggers are placed inline in page headers */}
+
+            <Tabs
           screenOptions={{
             headerShown: false,
             tabBarStyle: {
@@ -121,5 +129,6 @@ export default function Layout() {
         </View>
       </PanGestureHandler>
     </GestureHandlerRootView>
+    </SidebarProvider>
   );
 }

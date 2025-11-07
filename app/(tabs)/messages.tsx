@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Entypo from "@expo/vector-icons/Entypo";
+import { SidebarTrigger } from "../components/ui/sidebar";
 
 export default function Messages() {
   const [search, setSearch] = React.useState("");
@@ -20,7 +22,12 @@ export default function Messages() {
         showsVerticalScrollIndicator={false}
       >
         <View className="px-4">
-          <Text className="text-white text-3xl font-bold">Wiadomości</Text>
+          <View className="flex-row items-center">
+            <SidebarTrigger style={{ marginRight: 10 }}>
+              <Entypo name="menu" size={24} color="#60A5FA" />
+            </SidebarTrigger>
+            <Text className="text-white text-3xl font-bold">Wiadomości</Text>
+          </View>
         </View>
 
         <View className="flex-row items-center bg-black rounded-2xl h-14 px-4 py-2 mx-4 mt-4 border border-gray-700">

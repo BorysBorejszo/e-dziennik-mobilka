@@ -15,7 +15,7 @@ export default function Layout() {
   const segments = useSegments();
 
   // route order must match the Tabs.Screen order below
-  const routes = ["index", "schedule", "settings", "grades", "behavior", "messages"];
+  const routes = ["index", "schedule", "settings", "grades", "attendance", "messages"];
 
   // determine current active segment (last segment)
   const currentSegment = segments[segments.length - 1] || "index";
@@ -107,11 +107,11 @@ export default function Layout() {
             }}
           />
           <Tabs.Screen
-            name="behavior"
+            name="attendance"
             options={{
-              title: "Zachowanie",
+              title: "Frekwencja",
               tabBarIcon: ({ color, size }) => (
-                <Entypo name="star" size={size ?? 20} color={color} />
+                <Ionicons name="stats-chart-outline" size={24} color={color} />
               ),
             }}
           />

@@ -1,5 +1,4 @@
 import { ScrollView, Text, View, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Entypo from "@expo/vector-icons/Entypo";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
@@ -11,10 +10,10 @@ import { SidebarTrigger } from "../components/ui/sidebar";
 export default function Settings() {
   const router = useRouter();
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <ScrollView
+    <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: '#000' }}
       >
         <View className="px-4">
           <View className="flex-row items-start">
@@ -115,6 +114,5 @@ export default function Settings() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
   );
 }

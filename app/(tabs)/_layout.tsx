@@ -3,7 +3,8 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Tabs, useRouter, useSegments } from "expo-router";
 import "../globals.css";
 import { PanGestureHandler, State, GestureHandlerRootView } from "react-native-gesture-handler";
-import { View, SafeAreaView } from "react-native";
+import { View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React from "react";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar";
@@ -47,15 +48,16 @@ export default function Layout() {
 
   return (
     <SidebarProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
         <PanGestureHandler onHandlerStateChange={onGestureEvent} activeOffsetX={[-10, 10]}>
-          <View style={{ flex: 1 }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
             {/* App Sidebar (sliding drawer) */}
             <AppSidebar />
 
             {/* Trigger removed from top — triggers are placed inline in page headers */}
 
             <Tabs
+          sceneContainerStyle={{ backgroundColor: '#000' }}
           screenOptions={{
             headerShown: false,
             tabBarStyle: {
@@ -70,6 +72,7 @@ export default function Layout() {
             tabBarLabelStyle: { fontSize: 12 },
           }}
         >
+          
           <Tabs.Screen
             name="index"
             options={{
@@ -125,8 +128,8 @@ export default function Layout() {
               ),
             }}
           />
-        </Tabs>
-        </View>
+  </Tabs>
+  </SafeAreaView>
       </PanGestureHandler>
     </GestureHandlerRootView>
     </SidebarProvider>

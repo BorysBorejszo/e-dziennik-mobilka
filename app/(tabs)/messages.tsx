@@ -1,7 +1,6 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { router } from "expo-router";
 import * as React from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ScrollView,
   Text,
@@ -16,7 +15,7 @@ export default function Messages() {
   const [search, setSearch] = React.useState("");
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <View className="flex-1 bg-black">
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
@@ -48,7 +47,7 @@ export default function Messages() {
       >
         <Text className="text-white text-3xl">+</Text>
       </TouchableOpacity>
-    </SafeAreaView>
+    </View>
   );
 }
 

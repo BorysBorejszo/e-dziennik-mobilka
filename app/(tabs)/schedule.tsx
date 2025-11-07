@@ -8,7 +8,6 @@ import {
 } from "react-native";
 import Entypo from "@expo/vector-icons/Entypo";
 import { SidebarTrigger } from "../components/ui/sidebar";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 const days = [
   { short: "Pon", day: 4 },
@@ -44,10 +43,10 @@ const Schedule: React.FC = () => {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <ScrollView
+    <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: '#000' }}
       >
         <View className="px-6">
           <View className="flex-row items-start">
@@ -102,7 +101,6 @@ const Schedule: React.FC = () => {
 
         {/* Lesson blocks removed per request */}
       </ScrollView>
-    </SafeAreaView>
   );
 };
 

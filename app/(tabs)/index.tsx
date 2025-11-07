@@ -2,7 +2,6 @@ import Entypo from "@expo/vector-icons/Entypo";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { SidebarTrigger } from "../components/ui/sidebar";
 export default function App() {
   const today = new Date();
@@ -14,10 +13,10 @@ export default function App() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <ScrollView
+    <ScrollView
         contentContainerStyle={{ paddingBottom: 48 }}
         showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: '#000' }}
       >
         <View className="flex-1">
           {/* Header (greeting + date) */}
@@ -64,7 +63,6 @@ export default function App() {
 
         </View>
       </ScrollView>
-    </SafeAreaView>
   );
 }
 

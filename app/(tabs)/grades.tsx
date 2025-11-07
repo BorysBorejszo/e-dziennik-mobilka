@@ -1,15 +1,14 @@
 
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Entypo from "@expo/vector-icons/Entypo";
 import { SidebarTrigger } from "../components/ui/sidebar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 export default function Grades() {
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <ScrollView
+    <ScrollView
+        style={{ backgroundColor: '#000' }}
         contentContainerStyle={{ paddingBottom: 48 }}
         showsVerticalScrollIndicator={false}
       >
@@ -62,6 +61,5 @@ export default function Grades() {
 
         </View>
       </ScrollView>
-    </SafeAreaView>
   );
 }

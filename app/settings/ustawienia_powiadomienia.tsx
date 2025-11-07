@@ -1,8 +1,9 @@
 
 import React, { useState } from "react";
-import { SafeAreaView, Text, View, TouchableOpacity, Switch, ScrollView } from "react-native";
+import { Text, View, TouchableOpacity, Switch, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import GlassCard from "../../components/GlassCard";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function UstawieniaPowiadomienia() {
 	const router = useRouter();

@@ -5,6 +5,8 @@ import "../globals.css";
 import { PanGestureHandler, State, GestureHandlerRootView } from "react-native-gesture-handler";
 import { View } from "react-native";
 import React from "react";
+import Ionicons from "@expo/vector-icons/build/Ionicons";
+
 
 export default function Layout() {
   const router = useRouter();
@@ -92,7 +94,7 @@ export default function Layout() {
             options={{
               title: "Oceny",
               tabBarIcon: ({ color, size }) => (
-                <MaterialIcons name="calculate" size={size ?? 20} color={color} />
+                <Ionicons name="ribbon-outline" size={24} color={color} />
               ),
             }}
           />

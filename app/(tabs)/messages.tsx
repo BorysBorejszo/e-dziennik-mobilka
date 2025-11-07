@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { router } from "expo-router";
 import * as React from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  SafeAreaView,
   ScrollView,
   Text,
   TextInput,
@@ -19,7 +19,7 @@ export default function Messages() {
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="pt-4 px-4">
+        <View className="px-4">
           <Text className="text-white text-3xl font-bold">Wiadomości</Text>
         </View>
 

@@ -1,11 +1,11 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { router } from "expo-router";
 import * as React from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
 	Alert,
 	KeyboardAvoidingView,
 	Platform,
-	SafeAreaView,
 	ScrollView,
 	Text,
 	TextInput,
@@ -26,14 +26,13 @@ export default function NowaWiadomosc() {
 			return;
 		}
 
-		// Placeholder: replace with API call / navigation as needed
 		console.log("Wysyłam wiadomość:", { to, subject, body });
 		Alert.alert("Wysłano", "Wiadomość została wysłana.");
 		router.back();
 	}
 
 	return (
-		<SafeAreaView className="flex-1 bg-black px-4 pt-6">
+		<SafeAreaView className="flex-1 bg-black px-4 ">
 			<KeyboardAvoidingView
 				behavior={Platform.OS === "ios" ? "padding" : "height"}
 				className="flex-1"
@@ -42,7 +41,7 @@ export default function NowaWiadomosc() {
 					contentContainerStyle={{ paddingBottom: 160 }}
 					showsVerticalScrollIndicator={false}
 				>
-					<View className="flex-row items-center mb-4 mt-4 ">
+					<View className="flex-row items-center mb-16">
 						<TouchableOpacity onPress={() => router.push('/(tabs)/messages')} className="mr-4">
 							<Text className="text-blue-400 ml-4 text-2xl">◀</Text>
 						</TouchableOpacity>

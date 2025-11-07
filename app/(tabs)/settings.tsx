@@ -15,7 +15,7 @@ export default function Settings() {
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="pt-4 px-4">
+        <View className="px-4">
           <Text className="text-white text-3xl font-bold">Ustawienia</Text>
           <Text className="text-gray-400 text-lg">Zarządzaj swoimi ustawieniami</Text>
         </View>
@@ -23,7 +23,7 @@ export default function Settings() {
         <View className="px-4 mt-6">
           <Text className="text-white text-2xl">Konto</Text>
 
-          <View className="mt-3 border border-gray-700 rounded-xl w-full bg-black overflow-hidden">
+          <View className="mt-3 border border-gray-800 rounded-xl w-full bg-black overflow-hidden">
             <TouchableOpacity onPress={() => router.push('/settings/ustawienia_proflu')} className="flex-row items-center px-4 py-4 border-b border-gray-800">
               <View className="w-12 h-12 bg-gray-900 rounded-lg mr-4 items-center justify-center">
                 <Ionicons name="person-outline" size={24} color="#60A5FA" />
@@ -63,7 +63,7 @@ export default function Settings() {
         <View className="px-4 mt-6">
           <Text className="text-white text-2xl">Preferencje</Text>
 
-          <View className="mt-3 border border-gray-700 rounded-xl w-full bg-black overflow-hidden">
+          <View className="mt-3 border border-gray-800 rounded-xl w-full bg-black overflow-hidden">
             <TouchableOpacity onPress={() => router.push('/settings/ustawienia_wyglad')} className="flex-row items-center px-4 py-4 border-b border-gray-800">
               <View className="w-12 h-12 bg-gray-900 rounded-lg mr-4 items-center justify-center" >
                 <Ionicons name="color-palette-outline" size={24} color="#60A5FA" style={{ transform: [{ rotate: '45deg' }] }} />
@@ -92,7 +92,7 @@ export default function Settings() {
         <View className="px-4 mt-6 mb-8">
           <Text className="text-white text-2xl">Wsparcie</Text>
 
-          <View className="mt-3 border border-gray-700 rounded-xl w-full bg-black overflow-hidden">
+          <View className="mt-3 border border-gray-800 rounded-xl w-full bg-black overflow-hidden">
             <TouchableOpacity className="flex-row items-center px-4 py-4">
               <View className="w-12 h-12 bg-gray-900 rounded-lg mr-4 items-center justify-center">
                 <Ionicons name="help-circle-outline" size={24} color="#60A5FA" />

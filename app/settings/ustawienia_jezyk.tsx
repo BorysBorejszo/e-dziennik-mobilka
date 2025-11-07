@@ -1,5 +1,6 @@
-import { SafeAreaView, Text, View, TouchableOpacity } from "react-native";
+import { Text, View, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function UstawieniaJezyk() {
 	const router = useRouter();

@@ -19,7 +19,7 @@ export default function UstawieniaPowiadomienia() {
 	return (
 		<SafeAreaView edges={['bottom']} className="flex-1 bg-black">
 			<View className="flex-row mb-4 mt-4 ">
-				<TouchableOpacity onPress={() => router.back()} className="mr-4">
+				<TouchableOpacity onPress={() => router.push('/(tabs)/settings')} className="mr-4">
 					<Text className="text-blue-400 ml-4 text-2xl">◀  <Text className="text-white text-2xl font-bold">Powiadomienia</Text></Text>
 				</TouchableOpacity>
 			</View>

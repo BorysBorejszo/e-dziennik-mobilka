@@ -1,8 +1,29 @@
+import React from "react";
 import { Stack } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function SettingsLayout() {
-  // Nest settings screens in a Stack so only the parent 'settings' tab appears
-  // in the root Tabs navigator. Child screens (e.g. ustawienia_*) will be
-  // pushed onto this stack instead of creating separate tab items.
-  return <Stack screenOptions={{ headerShown: false }} />;
+  const insets = useSafeAreaInsets();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000" }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000",
+          paddingTop: insets.top,    
+          paddingBottom: insets.bottom 
+        }}
+      >
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "#000" },
+          }}
+        />
+      </View>
+    </GestureHandlerRootView>
+  );
 }

@@ -6,9 +6,10 @@ import { SidebarTrigger } from "./ui/sidebar";
 type Props = {
   title: string;
   subtitle?: string;
+  children?: React.ReactNode;
 };
 
-export default function Header({ title, subtitle }: Props) {
+export default function Header({ title, subtitle, children }: Props) {
   return (
     <View style={{ backgroundColor: "#000", zIndex: 20 }} className="px-4 pb-4">
       <View className="flex-row items-start">
@@ -21,6 +22,7 @@ export default function Header({ title, subtitle }: Props) {
           {subtitle ? <Text className="text-gray-400 text-lg mt-1">{subtitle}</Text> : null}
         </View>
       </View>
-    </View>
+      {children ? <View className="mt-4 -mx-4">{children}</View> : null}
+      </View>
   );
 }

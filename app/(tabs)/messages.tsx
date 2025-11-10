@@ -20,16 +20,18 @@ export default function Messages() {
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-  <Header title="Wiadomości" />
+        <Header title="Wiadomości" />
 
         <View className="flex-row items-center bg-black rounded-2xl h-14 px-4 py-2 mx-4 mt-4 border border-gray-700">
           <Ionicons name="search-outline" size={20} color="gray" />
           <TextInput
-            className="flex-1 ml-2 text-base text-white"
+            className="flex-1 ml-2 text-base text-white py-0"
             placeholder="Wyszukaj wiadomości..."
             value={search}
             onChangeText={setSearch}
             placeholderTextColor="#888"
+            textAlignVertical="center"
+            style={{ lineHeight: 20 }}
           />
         </View>
       </ScrollView>
@@ -43,5 +45,6 @@ export default function Messages() {
     </View>
   );
 }
+
 
 

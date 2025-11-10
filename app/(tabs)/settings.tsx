@@ -11,7 +11,6 @@ export default function Settings() {
   const router = useRouter();
   return (
     <ScrollView
-      stickyHeaderIndices={[0]}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
       style={{ backgroundColor: '#000' }}

@@ -151,6 +151,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   header: {
+    // add more top spacing so the 'Menu' label sits lower from the very top
+    paddingTop: 24,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.03)",
@@ -159,7 +161,8 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingTop: 12 },
   group: { marginBottom: 8 },
   groupTitle: { color: "#9CA3AF", fontSize: 12, marginBottom: 6 },
-  footer: { paddingVertical: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.03)" },
+  // keep small top padding but add extra bottom padding so 'Zamknij' has space from the bottom edge
+  footer: { paddingTop: 8, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.03)" },
 });
 
 export default null;

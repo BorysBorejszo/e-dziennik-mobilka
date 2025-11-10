@@ -43,9 +43,9 @@ export default function NowaWiadomosc() {
 				>
 					<View className="flex-row items-center mb-16">
 						<TouchableOpacity onPress={() => router.push('/(tabs)/messages')} className="mr-4">
-							<Text className="text-blue-400 ml-4 text-2xl">◀</Text>
+							<Text className="text-blue-400 ml-4 text-2xl">◀  <Text className="text-white text-2xl font-bold">Nowa wiadomość</Text></Text>
 						</TouchableOpacity>
-						<Text className="text-white text-2xl font-bold">Nowa wiadomość</Text>
+						
 					</View>
 
 					<GlassCard className="m-4">

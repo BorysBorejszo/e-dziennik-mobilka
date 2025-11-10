@@ -6,8 +6,7 @@ import {
   TouchableOpacity,
   Pressable,
 } from "react-native";
-import Entypo from "@expo/vector-icons/Entypo";
-import { SidebarTrigger } from "../components/ui/sidebar";
+import Header from "../components/Header";
 
 const days = [
   { short: "Pon", day: 4 },
@@ -16,9 +15,6 @@ const days = [
   { short: "Czw", day: 7 },
   { short: "Pt", day: 8 },
 ];
-
-
-
 const Schedule: React.FC = () => {
   const [selectedIndex, setSelectedIndex] = useState(2); // default Wed
 
@@ -44,63 +40,55 @@ const Schedule: React.FC = () => {
 
   return (
     <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-        style={{ backgroundColor: '#000' }}
-      >
-        <View className="px-6">
-          <View className="flex-row items-start">
-            <SidebarTrigger style={{ marginRight: 10, marginTop: 2 }}>
-              <Entypo name="menu" size={24} color="#60A5FA" />
-            </SidebarTrigger>
-            <View>
-              <Text className="text-white text-3xl font-extrabold">Plan lekcji</Text>
-              <Text className="text-slate-400 mt-1">{dateLabel}</Text>
-            </View>
-          </View>
+      stickyHeaderIndices={[0]}
+      contentContainerStyle={{ paddingBottom: 120 }}
+      showsVerticalScrollIndicator={false}
+      style={{ backgroundColor: '#000' }}
+    >
+      {/* Header - direct child to enable sticky */}
+      <Header title="Plan lekcji" subtitle={dateLabel} />
+
+      {/* Week picker card */}
+      <View className="mx-4 mt-6 rounded-2xl bg-neutral-800/30 border border-neutral-800 p-4 shadow-lg">
+        <View className="flex-row items-center justify-between mb-3">
+          <TouchableOpacity className="p-2 rounded-full bg-neutral-800">
+            <Text className="text-neutral-300">‹</Text>
+          </TouchableOpacity>
+          <Text className="text-white font-semibold">Ten tydzień</Text>
+          <TouchableOpacity className="p-2 rounded-full bg-neutral-800">
+            <Text className="text-neutral-300">›</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Week picker card */}
-        <View className="mx-4 mt-6 rounded-2xl bg-neutral-800/30 border border-neutral-800 p-4 shadow-lg">
-          <View className="flex-row items-center justify-between mb-3">
-            <TouchableOpacity className="p-2 rounded-full bg-neutral-800">
-              <Text className="text-neutral-300">‹</Text>
-            </TouchableOpacity>
-            <Text className="text-white font-semibold">Ten tydzień</Text>
-            <TouchableOpacity className="p-2 rounded-full bg-neutral-800">
-              <Text className="text-neutral-300">›</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View className="flex-row justify-between">
-            {days.map((d, i) => (
-              <Pressable
-                key={i}
-                onPress={() => setSelectedIndex(i)}
-                className={`flex-1 mx-1 py-3 rounded-xl items-center justify-center ${
-                  i === selectedIndex
-                    ? "bg-blue-500"
-                    : "bg-neutral-800"
-                }`}
-                style={
-                  i === selectedIndex
-                    ? { shadowColor: "#0ea5e9", shadowOpacity: 0.2, shadowRadius: 12 }
-                    : {}
-                }
-              >
-                <Text className={`text-sm ${i === selectedIndex ? "text-slate-100" : "text-slate-300"}`}>
-                  {d.short}
-                </Text>
-                <Text className={`text-lg font-semibold ${i === selectedIndex ? "text-white" : "text-slate-200"}`}>
-                  {d.day}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+        <View className="flex-row justify-between">
+          {days.map((d, i) => (
+            <Pressable
+              key={i}
+              onPress={() => setSelectedIndex(i)}
+              className={`flex-1 mx-1 py-3 rounded-xl items-center justify-center ${
+                i === selectedIndex
+                  ? "bg-blue-500"
+                  : "bg-neutral-800"
+              }`}
+              style={
+                i === selectedIndex
+                  ? { shadowColor: "#0ea5e9", shadowOpacity: 0.2, shadowRadius: 12 }
+                  : {}
+              }
+            >
+              <Text className={`text-sm ${i === selectedIndex ? "text-slate-100" : "text-slate-300"}`}>
+                {d.short}
+              </Text>
+              <Text className={`text-lg font-semibold ${i === selectedIndex ? "text-white" : "text-slate-200"}`}>
+                {d.day}
+              </Text>
+            </Pressable>
+          ))}
         </View>
+      </View>
 
-        {/* Lesson blocks removed per request */}
-      </ScrollView>
+      {/* Lesson blocks removed per request */}
+    </ScrollView>
   );
 };
 

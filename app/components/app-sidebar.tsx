@@ -36,7 +36,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <TouchableOpacity onPress={close} style={{ paddingVertical: 8 }}>
+        <TouchableOpacity onPress={close} style={{ paddingVertical: 6 }}>
           <Text style={{ color: "#9CA3AF" }}>Zamknij</Text>
         </TouchableOpacity>
       </SidebarFooter>

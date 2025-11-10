@@ -17,12 +17,11 @@ export default function UstawieniaPowiadomienia() {
 	const primaryThumbOn = "#EDE9FE"; // indigo-100-ish
 
 	return (
-		<SafeAreaView className="flex-1 bg-black px-4 pt-6">
-			<View className="flex-row items-center mb-4 mt-4 ">
-				<TouchableOpacity onPress={() => router.back()} className="mr-4">
-					<Text className="text-blue-400 ml-4 text-2xl">◀</Text>
+		<SafeAreaView className="flex-1 bg-black">
+			<View className="flex-row mb-4 mt-4 ">
+				<TouchableOpacity onPress={() => router.push('/(tabs)/settings')} className="mr-4">
+					<Text className="text-blue-400 ml-4 text-2xl">◀  <Text className="text-white text-2xl font-bold">Powiadomienia</Text></Text>
 				</TouchableOpacity>
-				<Text className="text-white text-2xl font-bold">Powiadomienia</Text>
 			</View>
 
 			<Text className="text-gray-300 mb-4 ml-4">Zarządzaj ustawieniami powiadomień: dźwięki, banery i harmonogramy.</Text>

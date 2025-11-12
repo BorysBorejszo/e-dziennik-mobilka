@@ -8,6 +8,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "./ui/sidebar";
+import { router } from "expo-router";
 
 export function AppSidebar() {
   const { close } = useSidebar();
@@ -20,7 +21,14 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup title="Nawigacja">
-          <TouchableOpacity onPress={close} style={{ paddingVertical: 10 }}>
+          <TouchableOpacity
+            onPress={() => {
+
+              close();
+              router.push("/");
+            }}
+            style={{ paddingVertical: 10 }}
+          >
             <Text style={{ color: "#fff" }}>Strona główna</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={close} style={{ paddingVertical: 10 }}>

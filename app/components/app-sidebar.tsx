@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import {
   Sidebar,
@@ -9,11 +9,13 @@ import {
   useSidebar,
 } from "./ui/sidebar";
 import { useTheme } from "../theme/ThemeContext";
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from "expo-router";
 
 export function AppSidebar() {
   const { close } = useSidebar();
   const { theme } = useTheme();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <Sidebar>
@@ -23,25 +25,82 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup title="Nawigacja">
-          <TouchableOpacity
-            onPress={() => {
+          <TouchableOpacity onPress={() => { close(); router.push('/'); }} style={{ paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="home-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+              <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Strona główna</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { close(); router.push('/schedule'); }} style={{ paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="calendar-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+              <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Plan lekcji</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { close(); router.push('/grades'); }} style={{ paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="ribbon-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+              <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Oceny</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { close(); router.push('/attendance'); }} style={{ paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="stats-chart-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+              <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Frekwencja</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { close(); router.push('/messages'); }} style={{ paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="chatbubbles-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+              <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Wiadomości</Text>
+            </View>
+          </TouchableOpacity>
+          {/* Group header toggles expansion */}
+          <TouchableOpacity onPress={() => setSettingsOpen(s => !s)} style={{ paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="settings-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+              <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', fontWeight: '600', marginLeft: 10 }}>Ustawienia</Text>
+            </View>
+            <Ionicons name={settingsOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+          </TouchableOpacity>
 
-              close();
-              router.push("/");
-            }}
-            style={{ paddingVertical: 10 }}
-          >
-            <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a' }}>Strona główna</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={close} style={{ paddingVertical: 10 }}>
-            <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a' }}>Plan lekcji</Text>
-          </TouchableOpacity>
-        </SidebarGroup>
-
-        <SidebarGroup title="Ustawienia">
-          <TouchableOpacity onPress={close} style={{ paddingVertical: 10 }}>
-            <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a' }}>Profil</Text>
-          </TouchableOpacity>
+          {settingsOpen ? (
+            <View style={{ paddingLeft: 6 }}>
+              
+              <TouchableOpacity onPress={() => { close(); router.push('/settings/ustawienia_wyglad'); }} style={{ paddingVertical: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="color-palette" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+                  <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Wygląd</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { close(); router.push('/settings/ustawienia_powiadomienia'); }} style={{ paddingVertical: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="notifications-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+                  <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Powiadomienia</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { close(); router.push('/settings/ustawienia_prywatnosc'); }} style={{ paddingVertical: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="lock-closed-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+                  <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Prywatność</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { close(); router.push('/settings/ustawienia_jezyk'); }} style={{ paddingVertical: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="language-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+                  <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Język</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setSettingsOpen(true); }} style={{ paddingVertical: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="person-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+                <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Profil</Text>
+              </View>
+            </TouchableOpacity>
+            </View>
+          ) : (
+            null
+          )}
         </SidebarGroup>
       </SidebarContent>
 

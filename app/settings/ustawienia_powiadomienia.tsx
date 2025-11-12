@@ -20,6 +20,9 @@ export default function UstawieniaPowiadomienia() {
 	const { theme } = useTheme();
 	const bg = theme === 'dark' ? 'bg-black' : 'bg-white';
 	const textClass = theme === 'dark' ? 'text-white' : 'text-black';
+	const smallTextClass = theme === 'dark' ? 'text-gray-300' : 'text-gray-600';
+	const separatorClass = theme === 'dark' ? 'border-white/6' : 'border-gray-200';
+	const switchTrackOff = theme === 'dark' ? 'rgba(255,255,255,0.12)' : '#E5E7EB';
 
 	return (
 		<SafeAreaView edges={['bottom']} className={`flex-1 ${bg}`}>
@@ -38,14 +41,14 @@ export default function UstawieniaPowiadomienia() {
 						<Switch
 							value={sounds}
 							onValueChange={setSounds}
-							trackColor={{ false: "rgba(255,255,255,0.12)", true: "#4F46E5" }}
+							trackColor={{ false: switchTrackOff, true: primaryTrackOn }}
 							thumbColor={sounds ? "#EDE9FE" : "#F3F4F6"}
 						/>
 					</View>
 
-					<View className="border-t border-white/6 mt-3 pt-3">
-						<Text className="text-gray-300">Włącz lub wyłącz dźwięki powiadomień aplikacji.</Text>
-					</View>
+						<View className={`border-t ${separatorClass} mt-3 pt-3`}>
+							<Text className={`${smallTextClass}`}>Włącz lub wyłącz dźwięki powiadomień aplikacji.</Text>
+						</View>
 				</GlassCard>
 
 				<GlassCard className="mb-4 ml-4 mr-4">
@@ -54,13 +57,13 @@ export default function UstawieniaPowiadomienia() {
 						<Switch
 							value={banners}
 							onValueChange={setBanners}
-							trackColor={{ false: "rgba(255,255,255,0.12)", true: primaryTrackOn }}
+							trackColor={{ false: switchTrackOff, true: primaryTrackOn }}
 							thumbColor={banners ? primaryThumbOn : "#F3F4F6"}
 						/>
 					</View>
 
-					<View className="border-t border-white/6 mt-3 pt-3">
-						<Text className="text-gray-300">Pokaż banery powiadomień na ekranie.</Text>
+					<View className={`border-t ${separatorClass} mt-3 pt-3`}>
+						<Text className={`${smallTextClass}`}>Pokaż banery powiadomień na ekranie.</Text>
 					</View>
 				</GlassCard>
 
@@ -70,13 +73,13 @@ export default function UstawieniaPowiadomienia() {
 						<Switch
 							value={schedule}
 							onValueChange={setSchedule}
-							trackColor={{ false: "rgba(255,255,255,0.12)", true: primaryTrackOn }}
+							trackColor={{ false: switchTrackOff, true: primaryTrackOn }}
 							thumbColor={schedule ? primaryThumbOn : "#F3F4F6"}
 						/>
 					</View>
 
-					<View className="border-t border-white/6 mt-3 pt-3">
-						<Text className="text-gray-300">Ustaw harmonogram niet przeszkadzać dla powiadomień.</Text>
+					<View className={`border-t ${separatorClass} mt-3 pt-3`}>
+						<Text className={`${smallTextClass}`}>Ustaw harmonogram niet przeszkadzać dla powiadomień.</Text>
 					</View>
 				</GlassCard>
 			</ScrollView>

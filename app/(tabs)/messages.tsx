@@ -45,7 +45,8 @@ export default function Messages() {
         className="absolute bottom-4 right-4  bg-blue-500 w-16 h-16 rounded-full justify-center items-center shadow-lg"
         onPress={() => router.push('/wiadomosci/nowa_wiadomosc')}
       >
-  <Text className={`${textClass} text-3xl`}>+</Text>
+        {/* plus should be white in light mode */}
+        <Text className={`text-white text-3xl`}>+</Text>
       </TouchableOpacity>
     </View>
   );

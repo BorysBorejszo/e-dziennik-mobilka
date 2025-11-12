@@ -8,15 +8,17 @@ import {
   SidebarFooter,
   useSidebar,
 } from "./ui/sidebar";
+import { useTheme } from "../theme/ThemeContext";
 import { router } from "expo-router";
 
 export function AppSidebar() {
   const { close } = useSidebar();
+  const { theme } = useTheme();
 
   return (
     <Sidebar>
       <SidebarHeader>
-        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 18 }}>Menu</Text>
+        <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', fontWeight: '700', fontSize: 18 }}>Menu</Text>
       </SidebarHeader>
 
       <SidebarContent>
@@ -29,23 +31,23 @@ export function AppSidebar() {
             }}
             style={{ paddingVertical: 10 }}
           >
-            <Text style={{ color: "#fff" }}>Strona główna</Text>
+            <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a' }}>Strona główna</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={close} style={{ paddingVertical: 10 }}>
-            <Text style={{ color: "#fff" }}>Plan lekcji</Text>
+            <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a' }}>Plan lekcji</Text>
           </TouchableOpacity>
         </SidebarGroup>
 
         <SidebarGroup title="Ustawienia">
           <TouchableOpacity onPress={close} style={{ paddingVertical: 10 }}>
-            <Text style={{ color: "#fff" }}>Profil</Text>
+            <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a' }}>Profil</Text>
           </TouchableOpacity>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>
         <TouchableOpacity onPress={close} style={{ paddingVertical: 6 }}>
-          <Text style={{ color: "#9CA3AF" }}>Zamknij</Text>
+          <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6b7280' }}>Zamknij</Text>
         </TouchableOpacity>
       </SidebarFooter>
     </Sidebar>

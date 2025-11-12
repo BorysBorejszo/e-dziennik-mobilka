@@ -7,6 +7,7 @@ import {
   Pressable,
 } from "react-native";
 import Header from "../components/Header";
+import { useTheme } from "../theme/ThemeContext";
 
 const days = [
   { short: "Pon", day: 4 },
@@ -38,25 +39,29 @@ const Schedule: React.FC = () => {
     return () => clearInterval(t);
   }, []);
 
+  const { theme } = useTheme();
+  const bg = theme === 'dark' ? '#000' : '#fff';
+  const textClass = theme === 'dark' ? 'text-white' : 'text-black';
+
   return (
     <ScrollView
       stickyHeaderIndices={[0]}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
-      style={{ backgroundColor: '#000' }}
+      style={{ backgroundColor: bg }}
     >
       {/* Header - direct child to enable sticky */}
       <Header title="Plan lekcji" subtitle={dateLabel} />
 
       {/* Week picker card */}
-      <View className="mx-4 mt-6 rounded-2xl bg-neutral-800/30 border border-neutral-800 p-4 shadow-lg">
+  <View className={`mx-4 mt-6 rounded-2xl ${theme === 'dark' ? 'bg-neutral-800/30 border-neutral-800' : 'bg-white border-gray-200'} border p-4 shadow-lg`}>
         <View className="flex-row items-center justify-between mb-3">
-          <TouchableOpacity className="p-2 rounded-full bg-neutral-800">
-            <Text className="text-neutral-300">‹</Text>
+          <TouchableOpacity className={`p-2 rounded-full ${theme === 'dark' ? 'bg-neutral-800' : 'bg-gray-100'}`}>
+            <Text className={`${theme === 'dark' ? 'text-neutral-300' : 'text-gray-600'}`}>‹</Text>
           </TouchableOpacity>
-          <Text className="text-white font-semibold">Ten tydzień</Text>
-          <TouchableOpacity className="p-2 rounded-full bg-neutral-800">
-            <Text className="text-neutral-300">›</Text>
+          <Text className={`${textClass} font-semibold`}>Ten tydzień</Text>
+          <TouchableOpacity className={`p-2 rounded-full ${theme === 'dark' ? 'bg-neutral-800' : 'bg-gray-100'}`}>
+            <Text className={`${theme === 'dark' ? 'text-neutral-300' : 'text-gray-600'}`}>›</Text>
           </TouchableOpacity>
         </View>
 
@@ -67,8 +72,8 @@ const Schedule: React.FC = () => {
               onPress={() => setSelectedIndex(i)}
               className={`flex-1 mx-1 py-3 rounded-xl items-center justify-center ${
                 i === selectedIndex
-                  ? "bg-blue-500"
-                  : "bg-neutral-800"
+                  ? 'bg-blue-500'
+                  : (theme === 'dark' ? 'bg-neutral-800' : 'bg-gray-100')
               }`}
               style={
                 i === selectedIndex
@@ -76,10 +81,10 @@ const Schedule: React.FC = () => {
                   : {}
               }
             >
-              <Text className={`text-sm ${i === selectedIndex ? "text-slate-100" : "text-slate-300"}`}>
+              <Text className={`text-sm ${i === selectedIndex ? (theme === 'dark' ? 'text-slate-100' : 'text-white') : (theme === 'dark' ? 'text-slate-300' : 'text-gray-500')}`}>
                 {d.short}
               </Text>
-              <Text className={`text-lg font-semibold ${i === selectedIndex ? "text-white" : "text-slate-200"}`}>
+              <Text className={`text-lg font-semibold ${i === selectedIndex ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-slate-200' : 'text-gray-600')}`}>
                 {d.day}
               </Text>
             </Pressable>

@@ -9,6 +9,7 @@ import React from "react";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar";
 import AppSidebar from "../components/app-sidebar";
+import { useTheme } from "../theme/ThemeContext";
 
 
 export default function Layout() {
@@ -46,29 +47,37 @@ export default function Layout() {
     }
   };
 
+  const { theme } = useTheme();
+
+  const bg = theme === 'dark' ? '#000' : '#fff';
+  const tabBarBg = theme === 'dark' ? '#0b0b0b' : '#f8fafc';
+  const tabBarBorder = theme === 'dark' ? '#374151' : '#e5e7eb';
+  const activeTint = theme === 'dark' ? '#60A5FA' : '#2563EB';
+  const inactiveTint = theme === 'dark' ? '#9CA3AF' : '#6B7280';
+
   return (
     <SidebarProvider>
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
-        <PanGestureHandler onHandlerStateChange={onGestureEvent} activeOffsetX={[-10, 10]}>
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
+      {/* ThemeProvider exists at app/_layout.tsx (root) — don't re-create here in normal use */}
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: bg }}>
+          <PanGestureHandler onHandlerStateChange={onGestureEvent} activeOffsetX={[-10, 10]}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
             {/* App Sidebar (sliding drawer) */}
             <AppSidebar />
 
             {/* Trigger removed from top — triggers are placed inline in page headers */}
 
             <Tabs
-          sceneContainerStyle={{ backgroundColor: '#000' }}
           screenOptions={{
             headerShown: false,
             tabBarStyle: {
-              backgroundColor: "#0b0b0b",
-              borderTopColor: "#374151",
+              backgroundColor: tabBarBg,
+              borderTopColor: tabBarBorder,
               height: 72,
               paddingBottom: 8,
               paddingTop: 6,
             },
-            tabBarActiveTintColor: "#60A5FA",
-            tabBarInactiveTintColor: "#9CA3AF",
+            tabBarActiveTintColor: activeTint,
+            tabBarInactiveTintColor: inactiveTint,
             tabBarLabelStyle: { fontSize: 12 },
           }}
         >
@@ -129,9 +138,9 @@ export default function Layout() {
             }}
           />
   </Tabs>
-  </SafeAreaView>
-      </PanGestureHandler>
-    </GestureHandlerRootView>
+            </SafeAreaView>
+          </PanGestureHandler>
+        </GestureHandlerRootView>
     </SidebarProvider>
   );
 }

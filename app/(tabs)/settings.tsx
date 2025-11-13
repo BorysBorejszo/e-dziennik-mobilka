@@ -107,6 +107,22 @@ export default function Settings() {
               <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} text-3xl`}>›</Text>
             </TouchableOpacity>
           </View>
+
+
+
+          <View className={`mt-3 rounded-xl w-full overflow-hidden border ${theme === 'dark' ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
+            <TouchableOpacity className="flex-row items-center px-4 py-4">
+              <View className={`w-12 h-12 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'} rounded-lg mr-4 items-center justify-center`}>
+                <Ionicons name="log-out-outline" size={24} color="red" />
+                
+              </View>
+              <View className="flex-1">
+                <Text className={`${textClass} text-lg font-semibold text-red-500`}>Wyloguj się</Text>
+                <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Wyloguj się z aplikacji</Text>
+              </View>
+              <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} text-3xl`}>›</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
   );

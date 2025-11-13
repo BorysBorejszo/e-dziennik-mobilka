@@ -69,7 +69,13 @@ export function AppSidebar() {
               
               <TouchableOpacity onPress={() => { close(); router.push('/settings/ustawienia_wyglad'); }} style={{ paddingVertical: 10 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons name="color-palette-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+                  <View style={{ transform: [{ rotate: '45deg' }], width: 18, height: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons
+                      name="color-palette-outline"
+                      size={18}
+                      color={theme === 'dark' ? '#fff' : '#0f172a'}
+                    />
+                  </View>
                   <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Wygląd</Text>
                 </View>
               </TouchableOpacity>

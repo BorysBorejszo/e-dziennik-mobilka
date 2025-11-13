@@ -21,15 +21,15 @@ export default function Ustawieniawygladu() {
 
 	return (
 			<SafeAreaView edges={['bottom']} className={`flex-1 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-				<View className="flex-row mb-4 mt-4 ">
+				<View className="flex-row px-4 mt-4 mb-4 ">
 					<TouchableOpacity onPress={() => router.push('/(tabs)/settings')} className="mr-4">
 					<Text className="text-blue-400 ml-4 text-2xl">◀  <Text className={`${theme === 'dark' ? 'text-white' : 'text-black'} text-2xl font-bold`}>Wygląd</Text></Text>
 				</TouchableOpacity>
 			</View>
 
-			<Text className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-4 ml-4`}>Zarządzaj ustawieniami wyglądu: motyw, czcionka i inne.</Text>
+			<Text className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-4 ml-4 px-4`}>Zarządzaj ustawieniami wyglądu: motyw, czcionka i inne.</Text>
 
-			<ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+			<ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 16 }}>
 				
 				<GlassCard>
 					<View className="flex-row justify-between items-center">

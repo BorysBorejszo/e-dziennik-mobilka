@@ -71,7 +71,14 @@ export default function Layout() {
             headerShown: false,
             tabBarStyle: {
               backgroundColor: tabBarBg,
-              borderTopColor: tabBarBorder,
+              // remove default top border / shadow on iOS and elevation on Android
+              borderTopWidth: 0,
+              borderTopColor: 'transparent',
+              elevation: 0,
+              shadowColor: 'transparent',
+              shadowOpacity: 0,
+              shadowOffset: { width: 0, height: 0 },
+              shadowRadius: 0,
               height: 72,
               paddingBottom: 8,
               paddingTop: 6,

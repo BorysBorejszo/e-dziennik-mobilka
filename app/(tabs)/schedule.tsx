@@ -84,7 +84,7 @@ const Schedule: React.FC = () => {
               <Text className={`text-sm ${i === selectedIndex ? (theme === 'dark' ? 'text-slate-100' : 'text-white') : (theme === 'dark' ? 'text-slate-300' : 'text-gray-500')}`}>
                 {d.short}
               </Text>
-              <Text className={`text-lg font-semibold ${i === selectedIndex ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-slate-200' : 'text-gray-600')}`}>
+              <Text className={`text-lg font-semibold ${i === selectedIndex ? 'text-white' : (theme === 'dark' ? 'text-slate-200' : 'text-gray-600')}`}>
                 {d.day}
               </Text>
             </Pressable>

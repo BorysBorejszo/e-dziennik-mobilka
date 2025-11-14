@@ -64,7 +64,7 @@ const Schedule: React.FC = () => {
             <Text className={`${theme === 'dark' ? 'text-neutral-300' : 'text-gray-600'}`}>›</Text>
           </TouchableOpacity>
         </View>
-
+      
         <View className="flex-row justify-between">
           {days.map((d, i) => (
             <Pressable

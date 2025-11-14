@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { router } from "expo-router";
 import * as React from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
+import SafeView from "../components/SafeView";
 import {
 	Alert,
 	KeyboardAvoidingView,
@@ -37,7 +37,7 @@ export default function NowaWiadomosc() {
 	const textClass = theme === 'dark' ? 'text-white' : 'text-black';
 
 	return (
-		<SafeAreaView className={`flex-1 ${bg} px-4 `}>
+	<SafeView edges={["top", "bottom"]} className={`flex-1 ${bg} px-4 `}>
 			<KeyboardAvoidingView
 				behavior={Platform.OS === "ios" ? "padding" : "height"}
 				className="flex-1"
@@ -108,7 +108,7 @@ export default function NowaWiadomosc() {
 					</TouchableOpacity>
 				</View>
 			</KeyboardAvoidingView>
-		</SafeAreaView>
+		</SafeView>
 	);
 }
 

@@ -4,7 +4,7 @@ import Entypo from "@expo/vector-icons/Entypo";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AntDesign from '@expo/vector-icons/AntDesign';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React from "react";
+import * as React from "react";
 import Header from "../components/Header";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -15,13 +15,15 @@ export default function Settings() {
   const textClass = theme === 'dark' ? 'text-white' : 'text-black';
 
   return (
-    <ScrollView
-      contentContainerStyle={{ paddingBottom: 120 }}
-      showsVerticalScrollIndicator={false}
-      style={{ backgroundColor: bg }}
-    >
-      <Header title="Ustawienia" subtitle="Zarządzaj swoimi ustawieniami" />
-
+    <View style={{ flex: 1, backgroundColor: bg }}>
+      <ScrollView
+        stickyHeaderIndices={[0]}
+        contentContainerStyle={{ paddingBottom: 120, paddingTop: 16 }}
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+      >
+        {/* Header (sticky) - placed inside ScrollView so it moves with overscroll like the main page */}
+        <Header title="Ustawienia" subtitle="Zarządzaj swoimi ustawieniami" />
         <View className="px-4 mt-6">
           <Text className={`${textClass} text-2xl`}>Konto</Text>
 
@@ -125,5 +127,6 @@ export default function Settings() {
           </View>
         </View>
       </ScrollView>
+    </View>
   );
 }

@@ -1,17 +1,17 @@
 
-import React, { useState } from "react";
+import * as React from "react";
 import { Text, View, TouchableOpacity, Switch, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import GlassCard from "../../components/GlassCard";
-import { SafeAreaView } from "react-native-safe-area-context";
+import SafeView from "../components/SafeView";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function Ustawieniawygladu() {
 	const router = useRouter();
 
-	const [sounds, setSounds] = useState(true);
-	const [banners, setBanners] = useState(true);
-	const [schedule, setSchedule] = useState(false);
+	const [sounds, setSounds] = React.useState(true);
+	const [banners, setBanners] = React.useState(true);
+	const [schedule, setSchedule] = React.useState(false);
 
 	// single color theme for all switches to keep UI consistent
 	const primaryTrackOn = "#4F46E5"; // indigo-600
@@ -20,16 +20,17 @@ export default function Ustawieniawygladu() {
 	const { theme, toggleTheme } = useTheme();
 
 	return (
-			<SafeAreaView edges={['bottom']} className={`flex-1 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-				<View className="flex-row px-4 mt-4 mb-4 ">
-					<TouchableOpacity onPress={() => router.push('/(tabs)/settings')} className="mr-4">
-					<Text className="text-blue-400 ml-4 text-2xl">◀  <Text className={`${theme === 'dark' ? 'text-white' : 'text-black'} text-2xl font-bold`}>Wygląd</Text></Text>
-				</TouchableOpacity>
-			</View>
+			<SafeView edges={['bottom']} className={`flex-1 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
+				{/* fixed header */}
+				<View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingHorizontal: 16, paddingTop: 12 }}>
+					<TouchableOpacity onPress={() => router.push('/(tabs)/settings')} style={{ marginRight: 12 }}>
+						<Text style={{ color: '#60A5FA', marginLeft: 8, fontSize: 20 }}>◀  <Text style={{ color: theme === 'dark' ? '#fff' : '#000', fontWeight: '700', fontSize: 20 }}>Wygląd</Text></Text>
+					</TouchableOpacity>
+				</View>
 
-			<Text className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-4 ml-4 px-4`}>Zarządzaj ustawieniami wyglądu: motyw, czcionka i inne.</Text>
+				<Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#374151', marginBottom: 8, marginLeft: 16, paddingHorizontal: 16, marginTop: 72 }}>Zarządzaj ustawieniami wyglądu: motyw, czcionka i inne.</Text>
 
-			<ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 16 }}>
+				<ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 16, paddingTop: 88 }}>
 				
 				<GlassCard>
 					<View className="flex-row justify-between items-center">
@@ -47,6 +48,6 @@ export default function Ustawieniawygladu() {
 				</GlassCard>
 
 			</ScrollView>
-		</SafeAreaView>
+		</SafeView>
 	);
 }

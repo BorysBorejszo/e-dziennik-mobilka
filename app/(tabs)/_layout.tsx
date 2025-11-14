@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   Text,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import SafeView from "../components/SafeView";
 import * as React from "react";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import IndexPage from "./index";
@@ -204,7 +204,8 @@ export default function Layout() {
     <SidebarProvider>
       {/* ThemeProvider exists at app/_layout.tsx (root) — don't re-create here in normal use */}
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: bg }}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
+        {/* top-level safe area: ensure header/toolbar area is stable across pages */}
+        <SafeView edges={['top']} style={{ flex: 1, backgroundColor: bg }}>
           {/* App Sidebar (sliding drawer) */}
           <AppSidebar />
 
@@ -344,7 +345,7 @@ export default function Layout() {
               );
             })}
           </View>
-        </SafeAreaView>
+  </SafeView>
       </GestureHandlerRootView>
     </SidebarProvider>
   );

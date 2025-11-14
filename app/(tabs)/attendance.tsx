@@ -29,18 +29,12 @@ export default function attendance() {
         {showCompact && (
           <View className="flex-row items-center gap-3">
             <View className="flex-row items-center gap-1.5">
-              <Text
-                className={`${theme === "dark" ? "text-gray-400" : "text-gray-600"} text-sm`}
-              >
-                Śr:
-              </Text>
+              
               <Text className={`${textClass} text-lg font-bold`}>
               89.4%
               </Text>
             </View>
-            <View
-              className={`w-px h-5 ${theme === "dark" ? "bg-gray-700" : "bg-gray-300"}`}
-            />
+            
             <View className="flex-row items-center gap-1.5">
             </View>
           </View>

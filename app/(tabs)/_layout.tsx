@@ -1,153 +1,351 @@
 import Entypo from "@expo/vector-icons/Entypo";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Tabs, useRouter, useSegments } from "expo-router";
+import { useRouter, useSegments } from "expo-router";
 import "../globals.css";
-import { PanGestureHandler, State, GestureHandlerRootView } from "react-native-gesture-handler";
-import { View } from "react-native";
+import {
+  PanGestureHandler,
+  State,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import {
+  View,
+  Animated,
+  Dimensions,
+  TouchableOpacity,
+  Text,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import React from "react";
+import * as React from "react";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
+import IndexPage from "./index";
+import SchedulePage from "./schedule";
+import SettingsPage from "./settings";
+import GradesPage from "./grades";
+import AttendancePage from "./attendance";
+import MessagesPage from "./messages";
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar";
 import AppSidebar from "../components/app-sidebar";
 import { useTheme } from "../theme/ThemeContext";
-
 
 export default function Layout() {
   const router = useRouter();
   const segments = useSegments();
 
   // route order must match the Tabs.Screen order below
-  const routes = ["index", "schedule", "settings", "grades", "attendance", "messages"];
+  const routes = [
+    "index",
+    "schedule",
+    "settings",
+    "grades",
+    "attendance",
+    "messages",
+  ];
 
   // determine current active segment (last segment)
   const currentSegment = segments[segments.length - 1] || "index";
-  const currentIndex = Math.max(0, routes.indexOf(currentSegment) === -1 ? 0 : routes.indexOf(currentSegment));
+  const currentIndex = Math.max(
+    0,
+    routes.indexOf(currentSegment) === -1 ? 0 : routes.indexOf(currentSegment)
+  );
+
+  const isAnimatingRef = React.useRef(false);
 
   const navigateToIndex = (i: number) => {
     const idx = (i + routes.length) % routes.length;
-    const route = routes[idx];
-    // route 'index' corresponds to root '/'
-    const path = route === "index" ? "/" : `/${route}`;
-  // router.replace has a strict typed signature from expo-router; cast to any to allow dynamic path
-  router.replace(path as any);
+    // animate base offset to the tapped page for a smooth transition
+    if (isAnimatingRef.current) return;
+    const target = -idx * screenWidth;
+    isAnimatingRef.current = true;
+    Animated.timing(offset, {
+      toValue: target,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      // finalize state
+      translateX.setValue(0);
+      offset.setValue(target);
+      setActiveIndex(idx);
+      isAnimatingRef.current = false;
+      // Note: we intentionally do NOT call router.replace here to avoid layout thrash.
+    });
+  };
+  // animated swipe handling: render pages side-by-side and translate container
+  const screenWidth = Dimensions.get("window").width;
+  const translateX = React.useRef(new Animated.Value(0)).current; // gesture translation during drag
+  const offset = React.useRef(
+    new Animated.Value(-currentIndex * screenWidth)
+  ).current; // base offset for active page
+
+  // combined translation = offset + gesture translation
+  const combinedTranslate = Animated.add(offset, translateX);
+
+  // instead of using Animated.event (native) we use a JS handler so we can detect
+  // whether the gesture is primarily horizontal or vertical and ignore verticals.
+  const isHorizontalRef = React.useRef(false);
+
+  const onGestureJS = (event: any) => {
+    const ne = event.nativeEvent;
+    const tx = ne.translationX ?? 0;
+    const ty = ne.translationY ?? 0;
+    // if vertical movement dominates, mark as not-horizontal and reset translateX
+    if (!isHorizontalRef.current && Math.abs(ty) > Math.abs(tx)) {
+      isHorizontalRef.current = false;
+      translateX.setValue(0);
+      return;
+    }
+    // if we already decided it's horizontal or horizontal dominates now, use it
+    if (Math.abs(tx) > Math.abs(ty)) {
+      isHorizontalRef.current = true;
+      translateX.setValue(tx);
+    }
   };
 
-  const onGestureEvent = (event: any) => {
+  // local active index state so we can update offset when route changes
+  const [activeIndex, setActiveIndex] = React.useState(currentIndex);
+
+  // keep offset in sync when segments change (e.g., programmatic navigation)
+  React.useEffect(() => {
+    const idx = Math.max(
+      0,
+      routes.indexOf(currentSegment) === -1 ? 0 : routes.indexOf(currentSegment)
+    );
+    setActiveIndex(idx);
+    offset.setValue(-idx * screenWidth);
+    translateX.setValue(0);
+  }, [currentSegment]);
+
+  const handleStateChange = (event: any) => {
     const ne = event.nativeEvent;
     if (ne.state === State.END) {
       const dx = ne.translationX;
-      const threshold = 80;
+      const dy = ne.translationY ?? 0;
+      // if the gesture was mostly vertical, ignore it (allow inner ScrollViews to handle)
+      if (Math.abs(dy) > Math.abs(dx) || !isHorizontalRef.current) {
+        // reset any temporary gesture translation and clear flag
+        isHorizontalRef.current = false;
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+        return;
+      }
+      const threshold = Math.min(120, screenWidth * 0.25); // require a larger swipe on wide screens
       if (dx < -threshold) {
-        // swipe left -> next
-        navigateToIndex(currentIndex + 1);
+        // go to next
+        const next = (activeIndex + 1 + routes.length) % routes.length;
+        const target = -next * screenWidth;
+        // animate base offset to the next page while resetting the gesture translateX to 0
+        Animated.parallel([
+          Animated.timing(offset, {
+            toValue: target,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateX, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // finalize
+          translateX.setValue(0);
+          offset.setValue(target);
+          setActiveIndex(next);
+          isHorizontalRef.current = false;
+          const route = routes[next];
+          const path = route === "index" ? "/" : `/${route}`;
+          // do NOT call router.replace when swiping — update UI only (live preview + offset)
+          // Navigation URL will still update when user taps the tab bar.
+        });
       } else if (dx > threshold) {
-        // swipe right -> previous
-        navigateToIndex(currentIndex - 1);
+        // go to prev
+        const prev = (activeIndex - 1 + routes.length) % routes.length;
+        const target = -prev * screenWidth;
+        Animated.parallel([
+          Animated.timing(offset, {
+            toValue: target,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateX, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          translateX.setValue(0);
+          offset.setValue(target);
+          setActiveIndex(prev);
+          isHorizontalRef.current = false;
+          const route = routes[prev];
+          const path = route === "index" ? "/" : `/${route}`;
+          // do NOT call router.replace when swiping — update UI only (live preview + offset)
+          // Navigation URL will still update when user taps the tab bar.
+        });
+      } else {
+        // snap back
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
       }
     }
   };
 
   const { theme } = useTheme();
 
-  const bg = theme === 'dark' ? '#000' : '#fff';
-  const tabBarBg = theme === 'dark' ? '#0b0b0b' : '#f8fafc';
-  const tabBarBorder = theme === 'dark' ? '#374151' : '#e5e7eb';
-  const activeTint = theme === 'dark' ? '#60A5FA' : '#2563EB';
-  const inactiveTint = theme === 'dark' ? '#9CA3AF' : '#6B7280';
+  const bg = theme === "dark" ? "#000" : "#fff";
+  const tabBarBg = theme === "dark" ? "#0b0b0b" : "#f8fafc";
+  const tabBarBorder = theme === "dark" ? "#374151" : "#e5e7eb";
+  const activeTint = theme === "dark" ? "#60A5FA" : "#2563EB";
+  const inactiveTint = theme === "dark" ? "#9CA3AF" : "#6B7280";
 
   return (
     <SidebarProvider>
       {/* ThemeProvider exists at app/_layout.tsx (root) — don't re-create here in normal use */}
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: bg }}>
-          <PanGestureHandler onHandlerStateChange={onGestureEvent} activeOffsetX={[-10, 10]}>
-            <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
-            {/* App Sidebar (sliding drawer) */}
-            <AppSidebar />
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: bg }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
+          {/* App Sidebar (sliding drawer) */}
+          <AppSidebar />
 
-            {/* Trigger removed from top — triggers are placed inline in page headers */}
+          {/* Trigger removed from top — triggers are placed inline in page headers */}
 
-            <Tabs
-          screenOptions={{
-            headerShown: false,
-            tabBarStyle: {
-              backgroundColor: tabBarBg,
-              // remove default top border / shadow on iOS and elevation on Android
-              borderTopWidth: 0,
-              borderTopColor: 'transparent',
-              elevation: 0,
-              shadowColor: 'transparent',
-              shadowOpacity: 0,
-              shadowOffset: { width: 0, height: 0 },
-              shadowRadius: 0,
+          <View style={{ flex: 1 }}>
+            <PanGestureHandler
+              onGestureEvent={onGestureJS}
+              onHandlerStateChange={handleStateChange}
+              activeOffsetX={[-20, 20]}
+              // if user moves vertically more than 20px, fail this handler so inner ScrollViews keep control
+              failOffsetY={[-20, 20]}
+              // we'll handle gesture movement in JS above to better distinguish vertical vs horizontal drags
+            >
+              <Animated.View
+                style={{
+                  flex: 1,
+                  transform: [{ translateX: combinedTranslate }],
+                }}
+              >
+                {/* horizontal row of pages for live preview */}
+                <View
+                  style={{
+                    width: screenWidth * routes.length,
+                    flexDirection: "row",
+                  }}
+                >
+                  {[
+                    IndexPage,
+                    SchedulePage,
+                    SettingsPage,
+                    GradesPage,
+                    AttendancePage,
+                    MessagesPage,
+                  ].map((Page, idx) => (
+                    <View key={routes[idx]} style={{ width: screenWidth }}>
+                      <Page />
+                    </View>
+                  ))}
+                </View>
+              </Animated.View>
+            </PanGestureHandler>
+          </View>
+
+          {/* Custom static tab bar (not animated) */}
+          <View
+            style={{
+              flexDirection: "row",
               height: 72,
               paddingBottom: 8,
               paddingTop: 6,
-            },
-            tabBarActiveTintColor: activeTint,
-            tabBarInactiveTintColor: inactiveTint,
-            tabBarLabelStyle: { fontSize: 12 },
-          }}
-        >
-          
-          <Tabs.Screen
-            name="index"
-            options={{
-              title: "Główna",
-              tabBarIcon: ({ color, size }) => (
-                <Entypo name="home" size={size ?? 20} color={color} />
-              ),
+              backgroundColor: tabBarBg,
+              borderTopWidth: 0,
+              alignItems: "center",
+              justifyContent: "space-around",
             }}
-          />
-          <Tabs.Screen
-            name="schedule"
-            options={{
-              title: "Plan",
-              tabBarIcon: ({ color, size }) => (
-                <Entypo name="calendar" size={size ?? 20} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="settings"
-            options={{
-              title: "Ustawienia",
-              tabBarIcon: ({ color, size }) => (
-                <Entypo name="cog" size={size ?? 20} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="grades"
-            options={{
-              title: "Oceny",
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="ribbon-outline" size={24} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="attendance"
-            options={{
-              title: "Frekwencja",
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="stats-chart-outline" size={24} color={color} />
-              ),
-            }}
-          />
-          
-          <Tabs.Screen
-            name="messages"
-            options={{
-              title: "Wiadomości",
-              tabBarIcon: ({ color, size }) => (
-                <Entypo name="chat" size={size ?? 20} color={color} />
-              ),
-            }}
-          />
-  </Tabs>
-            </SafeAreaView>
-          </PanGestureHandler>
-        </GestureHandlerRootView>
+          >
+            {routes.map((route, i) => {
+              const focused = i === activeIndex;
+              const color = focused ? activeTint : inactiveTint;
+              return (
+                <TouchableOpacity
+                  key={route}
+                  onPress={() => navigateToIndex(i)}
+                  style={{
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flex: 1,
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={{ alignItems: "center", justifyContent: "center" }}
+                  >
+                    {/* larger icon container so icons match the provided screenshot */}
+                    <View
+                      style={{
+                        height: 36,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {route === "index" && (
+                        <Entypo name="home" size={26} color={color} />
+                      )}
+                      {route === "schedule" && (
+                        <Entypo name="calendar" size={26} color={color} />
+                      )}
+                      {route === "settings" && (
+                        <Entypo name="cog" size={26} color={color} />
+                      )}
+                      {route === "grades" && (
+                        <Ionicons
+                          name="ribbon-outline"
+                          size={28}
+                          color={color}
+                          style={{ marginTop: 1 }}
+                        />
+                      )}
+                      {route === "attendance" && (
+                        <Ionicons
+                          name="stats-chart-outline"
+                          size={28}
+                          color={color}
+                          style={{ marginTop: 1 }}
+                        />
+                      )}
+                      {route === "messages" && (
+                        <Entypo name="chat" size={26} color={color} />
+                      )}
+                    </View>
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      style={{
+                        color,
+                        fontSize: 12,
+                        marginTop: 0,
+                        maxWidth: 48,
+                        textAlign: "center",
+                      }}
+                    >
+                      {route === "index"
+                        ? "Główna"
+                        : route === "schedule"
+                          ? "Plan"
+                          : route === "settings"
+                            ? "Ustawienia"
+                            : route === "grades"
+                              ? "Oceny"
+                              : route === "attendance"
+                                ? "Frekwencja"
+                                : "Wiadomości"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </SafeAreaView>
+      </GestureHandlerRootView>
     </SidebarProvider>
   );
 }

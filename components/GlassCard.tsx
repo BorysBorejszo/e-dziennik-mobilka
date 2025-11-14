@@ -7,7 +7,12 @@ type Props = ViewProps & {
   className?: string;
 };
 
-export default function GlassCard({ children, style, className, ...rest }: Props) {
+export default function GlassCard({
+  children,
+  style,
+  className,
+  ...rest
+}: Props) {
   const [blurAvailable, setBlurAvailable] = useState(false);
   const [BlurView, setBlurView]: any = useState(null);
   const { theme } = useTheme();
@@ -27,9 +32,11 @@ export default function GlassCard({ children, style, className, ...rest }: Props
   }, []);
 
   const dynamicContainer = {
-    borderColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(2,6,23,0.06)',
-    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.98)',
-    shadowColor: theme === 'dark' ? '#000' : '#000',
+    borderColor:
+      theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(2,6,23,0.06)",
+    backgroundColor:
+      theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.98)",
+    shadowColor: theme === "dark" ? "#000" : "#000",
   } as any;
 
   return (
@@ -40,11 +47,13 @@ export default function GlassCard({ children, style, className, ...rest }: Props
     >
       {blurAvailable && BlurView ? (
         // @ts-ignore - dynamic component type
-        <BlurView intensity={60} tint={theme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-      ) : (
-        // fallback: subtle translucent overlay handled by backgroundColor in styles
-        null
-      )}
+        <BlurView
+          intensity={60}
+          tint={theme === "dark" ? "dark" : "light"}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : // fallback: subtle translucent overlay handled by backgroundColor in styles
+      null}
 
       <View style={styles.content}>{children}</View>
     </View>

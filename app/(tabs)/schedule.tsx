@@ -28,7 +28,9 @@ const Schedule: React.FC = () => {
       day: "numeric",
     });
 
-  const [dateLabel, setDateLabel] = useState<string>(() => formatPolishDate(new Date()));
+  const [dateLabel, setDateLabel] = useState<string>(() =>
+    formatPolishDate(new Date())
+  );
 
   useEffect(() => {
     // Check every minute and update if the day changed
@@ -40,8 +42,8 @@ const Schedule: React.FC = () => {
   }, []);
 
   const { theme } = useTheme();
-  const bg = theme === 'dark' ? '#000' : '#fff';
-  const textClass = theme === 'dark' ? 'text-white' : 'text-black';
+  const bg = theme === "dark" ? "#000" : "#fff";
+  const textClass = theme === "dark" ? "text-white" : "text-black";
 
   return (
     <ScrollView
@@ -54,17 +56,31 @@ const Schedule: React.FC = () => {
       <Header title="Plan lekcji" subtitle={dateLabel} />
 
       {/* Week picker card */}
-  <View className={`mx-4 mt-6 rounded-2xl ${theme === 'dark' ? 'bg-neutral-800/30 border-neutral-800' : 'bg-white border-gray-200'} border p-4 shadow-lg`}>
+      <View
+        className={`mx-4 mt-6 rounded-2xl ${theme === "dark" ? "bg-neutral-800/30 border-neutral-800" : "bg-white border-gray-200"} border p-4 shadow-lg`}
+      >
         <View className="flex-row items-center justify-between mb-3">
-          <TouchableOpacity className={`p-2 rounded-full ${theme === 'dark' ? 'bg-neutral-800' : 'bg-gray-100'}`}>
-            <Text className={`${theme === 'dark' ? 'text-neutral-300' : 'text-gray-600'}`}>‹</Text>
+          <TouchableOpacity
+            className={`p-2 rounded-full ${theme === "dark" ? "bg-neutral-800" : "bg-gray-100"}`}
+          >
+            <Text
+              className={`${theme === "dark" ? "text-neutral-300" : "text-gray-600"}`}
+            >
+              ‹
+            </Text>
           </TouchableOpacity>
           <Text className={`${textClass} font-semibold`}>Ten tydzień</Text>
-          <TouchableOpacity className={`p-2 rounded-full ${theme === 'dark' ? 'bg-neutral-800' : 'bg-gray-100'}`}>
-            <Text className={`${theme === 'dark' ? 'text-neutral-300' : 'text-gray-600'}`}>›</Text>
+          <TouchableOpacity
+            className={`p-2 rounded-full ${theme === "dark" ? "bg-neutral-800" : "bg-gray-100"}`}
+          >
+            <Text
+              className={`${theme === "dark" ? "text-neutral-300" : "text-gray-600"}`}
+            >
+              ›
+            </Text>
           </TouchableOpacity>
         </View>
-      
+
         <View className="flex-row justify-between">
           {days.map((d, i) => (
             <Pressable
@@ -72,19 +88,29 @@ const Schedule: React.FC = () => {
               onPress={() => setSelectedIndex(i)}
               className={`flex-1 mx-1 py-3 rounded-xl items-center justify-center ${
                 i === selectedIndex
-                  ? 'bg-blue-500'
-                  : (theme === 'dark' ? 'bg-neutral-800' : 'bg-gray-100')
+                  ? "bg-blue-500"
+                  : theme === "dark"
+                    ? "bg-neutral-800"
+                    : "bg-gray-100"
               }`}
               style={
                 i === selectedIndex
-                  ? { shadowColor: "#0ea5e9", shadowOpacity: 0.2, shadowRadius: 12 }
+                  ? {
+                      shadowColor: "#0ea5e9",
+                      shadowOpacity: 0.2,
+                      shadowRadius: 12,
+                    }
                   : {}
               }
             >
-              <Text className={`text-sm ${i === selectedIndex ? (theme === 'dark' ? 'text-slate-100' : 'text-white') : (theme === 'dark' ? 'text-slate-300' : 'text-gray-500')}`}>
+              <Text
+                className={`text-sm ${i === selectedIndex ? (theme === "dark" ? "text-slate-100" : "text-white") : theme === "dark" ? "text-slate-300" : "text-gray-500"}`}
+              >
                 {d.short}
               </Text>
-              <Text className={`text-lg font-semibold ${i === selectedIndex ? 'text-white' : (theme === 'dark' ? 'text-slate-200' : 'text-gray-600')}`}>
+              <Text
+                className={`text-lg font-semibold ${i === selectedIndex ? "text-white" : theme === "dark" ? "text-slate-200" : "text-gray-600"}`}
+              >
                 {d.day}
               </Text>
             </Pressable>

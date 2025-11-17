@@ -15,6 +15,7 @@ import {
   Text,
 } from "react-native";
 import SafeView from "../components/SafeView";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as React from "react";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import IndexPage from "./index";
@@ -200,6 +201,8 @@ export default function Layout() {
   const activeTint = theme === "dark" ? "#60A5FA" : "#2563EB";
   const inactiveTint = theme === "dark" ? "#9CA3AF" : "#6B7280";
 
+  const insets = useSafeAreaInsets();
+
   return (
     <SidebarProvider>
       {/* ThemeProvider exists at app/_layout.tsx (root) — don't re-create here in normal use */}
@@ -254,8 +257,8 @@ export default function Layout() {
           <View
             style={{
               flexDirection: "row",
-              height: 72,
-              paddingBottom: 8,
+              height: 72 + insets.bottom,
+              paddingBottom: 8 + insets.bottom,
               paddingTop: 6,
               backgroundColor: tabBarBg,
               borderTopWidth: 0,

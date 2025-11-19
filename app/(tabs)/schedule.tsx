@@ -1,23 +1,53 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  Pressable,
   ScrollView,
   Text,
-  View,
   TouchableOpacity,
-  Pressable,
+  View,
 } from "react-native";
 import Header from "../components/Header";
 import { useTheme } from "../theme/ThemeContext";
 
-const days = [
-  { short: "Pon", day: 4 },
-  { short: "Wt", day: 5 },
-  { short: "Śr", day: 6 },
-  { short: "Czw", day: 7 },
-  { short: "Pt", day: 8 },
-];
 const Schedule: React.FC = () => {
-  const [selectedIndex, setSelectedIndex] = useState(2); // default Wed
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = this week, -1 previous, +1 next
+
+  // Helper: start of week (Monday)
+  const getStartOfWeek = (d: Date) => {
+    const date = new Date(d);
+    const day = date.getDay(); // 0 (Sun) .. 6 (Sat)
+    const diff = (day + 6) % 7; // days since Monday
+    date.setDate(date.getDate() - diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  };
+
+  // Compute the 5 day entries (Mon..Fri) for the current week + offset
+  const days = useMemo(() => {
+    const today = new Date();
+    const start = getStartOfWeek(new Date(today.getFullYear(), today.getMonth(), today.getDate() + weekOffset * 7));
+    const arr: { short: string; day: number; date: Date }[] = [];
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      // localized short weekday, remove trailing dot if present, and capitalize first letter
+      let short = d.toLocaleDateString("pl-PL", { weekday: "short" });
+      short = short.replace(".", "");
+      short = short.charAt(0).toUpperCase() + short.slice(1);
+      arr.push({ short, day: d.getDate(), date: d });
+    }
+    return arr;
+  }, [weekOffset]);
+
+  // Set default selected index to today's index when viewing current week
+  useEffect(() => {
+    const today = new Date();
+    const start = getStartOfWeek(today);
+    const idx = Math.min(Math.max(today.getDate() - start.getDate(), 0), 4);
+    if (weekOffset === 0) setSelectedIndex(idx);
+    else setSelectedIndex(0);
+  }, [weekOffset]);
 
   // Polish localized date string under the title, updates automatically
   const formatPolishDate = (d: Date) =>
@@ -61,6 +91,7 @@ const Schedule: React.FC = () => {
       >
         <View className="flex-row items-center justify-between mb-3">
           <TouchableOpacity
+            onPress={() => setWeekOffset((w) => w - 1)}
             className={`p-2 rounded-full ${theme === "dark" ? "bg-neutral-800" : "bg-gray-100"}`}
           >
             <Text
@@ -71,6 +102,7 @@ const Schedule: React.FC = () => {
           </TouchableOpacity>
           <Text className={`${textClass} font-semibold`}>Ten tydzień</Text>
           <TouchableOpacity
+            onPress={() => setWeekOffset((w) => w + 1)}
             className={`p-2 rounded-full ${theme === "dark" ? "bg-neutral-800" : "bg-gray-100"}`}
           >
             <Text

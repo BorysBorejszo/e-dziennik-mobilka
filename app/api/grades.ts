@@ -13,6 +13,7 @@ export type SubjectGrades = {
 
 export type GradesResponse = {
   subjects: SubjectGrades[];
+  behavior?: SubjectGrades; // Zachowanie jako specjalna kategoria
 };
 
 const DB: Record<number, GradesResponse> = {
@@ -51,6 +52,13 @@ const DB: Record<number, GradesResponse> = {
         ],
       },
     ],
+    behavior: {
+      subject: "Zachowanie",
+      grades: [
+        { value: 5, label: "5", date: "2025-09-30", category: "Miesiąc" },
+        { value: 4, label: "4+", date: "2025-10-31", category: "Miesiąc" },
+      ],
+    },
   },
   2: {
     subjects: [
@@ -86,6 +94,13 @@ const DB: Record<number, GradesResponse> = {
         ],
       },
     ],
+    behavior: {
+      subject: "Zachowanie",
+      grades: [
+        { value: 6, label: "6", date: "2025-09-30", category: "Miesiąc" },
+        { value: 6, label: "6", date: "2025-10-31", category: "Miesiąc" },
+      ],
+    },
   },
 };
 
@@ -95,7 +110,10 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
   const data = DB[userId];
   if (!data) return { subjects: [] };
   // shallow clone to avoid accidental external mutation
-  return { subjects: data.subjects.map((s) => ({ subject: s.subject, grades: [...s.grades] })) };
+  return { 
+    subjects: data.subjects.map((s) => ({ subject: s.subject, grades: [...s.grades] })),
+    behavior: data.behavior ? { subject: data.behavior.subject, grades: [...data.behavior.grades] } : undefined
+  };
 };
 
 export const calculateWeightedAverage = (items: GradeItem[]): number | null => {

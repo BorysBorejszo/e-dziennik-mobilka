@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { calculateWeightedAverage, getUserGrades, SubjectGrades } from "../api/grades";
 import Header from "../components/Header";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
+import { useRouter } from "expo-router";
 
 export default function Grades() {
     const { theme } = useTheme();
     const { user } = useUser();
+    const router = useRouter();
     const bg = theme === "dark" ? "#000" : "#fff";
     const textClass = theme === "dark" ? "text-white" : "text-black";
 
     const [showCompact, setShowCompact] = useState(false);
     const [subjects, setSubjects] = useState<SubjectGrades[] | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [behaviorGrades, setBehaviorGrades] = useState<SubjectGrades | null>(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const load = async () => {
@@ -24,6 +27,7 @@ export default function Grades() {
         try {
             const res = await getUserGrades(user.id);
             setSubjects(res.subjects);
+            setBehaviorGrades(res.behavior || null);
         } catch (e) {
             setError("Nie udało się pobrać ocen");
         } finally {
@@ -41,6 +45,11 @@ export default function Grades() {
         const all = subjects.flatMap((s) => s.grades);
         return calculateWeightedAverage(all);
     }, [subjects]);
+
+    const behaviorAverage = useMemo(() => {
+        if (!behaviorGrades?.grades?.length) return null;
+        return calculateWeightedAverage(behaviorGrades.grades);
+    }, [behaviorGrades]);
 
     const chipBg = (v: number) => {
         switch (true) {
@@ -106,7 +115,7 @@ export default function Grades() {
                                 Zach:
                             </Text>
                             <Text className={`${textClass} text-lg font-bold`}>
-                                {user?.grades.behavior ?? '—'}
+                                {behaviorAverage ?? '—'}
                             </Text>
                         </View>
                     </View>
@@ -155,11 +164,53 @@ export default function Grades() {
                                 Ocena z zachowania
                             </Text>
                             <Text className={`${textClass} text-5xl font-bold mt-2`}>
-                                {user?.grades.behavior ?? "—"}
+                                {behaviorAverage ?? "—"}
                             </Text>
                         </View>
                     </View>
                 </View>
+
+                {/* Zachowanie jako osobna sekcja */}
+                {behaviorGrades && behaviorGrades.grades && behaviorGrades.grades.length > 0 && (
+                    <View className="px-4 mt-4">
+                        <Text className={`${textClass} text-2xl mt-0`}>
+                            Zachowanie:
+                        </Text>
+                        <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => behaviorGrades && router.push(`/przedmiot/${encodeURIComponent(behaviorGrades.subject)}`)}
+                        >
+                            <View
+                                className={`mt-3 ${
+                                    theme === "dark"
+                                        ? "border-gray-800 bg-black"
+                                        : "border-gray-200 bg-white"
+                                } border rounded-xl w-full p-4`}
+                            >
+                                <View className="flex-row items-center justify-between mb-2">
+                                    <Text className={`${textClass} text-lg font-semibold`}>
+                                        {behaviorGrades?.subject}
+                                    </Text>
+                                    <Text className={`${textClass} text-base`}>
+                                        Śr: {behaviorAverage ?? "—"}
+                                    </Text>
+                                </View>
+                                <View className="flex-row flex-wrap">
+                                    {behaviorGrades?.grades?.map((g, i) => (
+                                        <View
+                                            key={i}
+                                            className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2`}
+                                        >
+                                            <Text className={`text-white text-sm font-medium`}>
+                                                {g.label ?? String(g.value)}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 <View className="px-4 mt-4">
                     <Text className={`${textClass} text-2xl mt-0`}>
@@ -176,38 +227,43 @@ export default function Grades() {
                     {!loading && subjects && subjects.length === 0 && (
                         <Text className={`${textClass} mt-3`}>Brak ocen</Text>
                     )}
-                    {subjects?.map((s, idx) => {
+                    {!loading && subjects?.map((s, idx) => {
                         const avg = calculateWeightedAverage(s.grades);
                         return (
-                            <View
+                            <TouchableOpacity
                                 key={idx}
-                                className={`mt-3 ${
-                                    theme === "dark"
-                                        ? "border-gray-800 bg-black"
-                                        : "border-gray-200 bg-white"
-                                } border rounded-xl w-full p-4`}
+                                activeOpacity={0.7}
+                                onPress={() => router.push(`/przedmiot/${encodeURIComponent(s.subject)}`)}
                             >
-                                <View className="flex-row items-center justify-between mb-2">
-                                    <Text className={`${textClass} text-lg font-semibold`}>
-                                        {s.subject}
-                                    </Text>
-                                    <Text className={`${textClass} text-base`}>
-                                        Śr: {avg ?? "—"}
-                                    </Text>
+                                <View
+                                    className={`mt-3 ${
+                                        theme === "dark"
+                                            ? "border-gray-800 bg-black"
+                                            : "border-gray-200 bg-white"
+                                    } border rounded-xl w-full p-4`}
+                                >
+                                    <View className="flex-row items-center justify-between mb-2">
+                                        <Text className={`${textClass} text-lg font-semibold`}>
+                                            {s.subject}
+                                        </Text>
+                                        <Text className={`${textClass} text-base`}>
+                                            Śr: {avg ?? "—"}
+                                        </Text>
+                                    </View>
+                                    <View className="flex-row flex-wrap">
+                                        {s.grades.map((g, i) => (
+                                            <View
+                                                key={i}
+                                                className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2`}
+                                            >
+                                                <Text className={`text-white text-sm font-medium`}>
+                                                    {g.label ?? String(g.value)}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                    </View>
                                 </View>
-                                <View className="flex-row flex-wrap">
-                                    {s.grades.map((g, i) => (
-                                        <View
-                                            key={i}
-                                            className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2`}
-                                        >
-                                            <Text className={`text-white text-sm font-medium`}>
-                                                {g.label ?? String(g.value)}
-                                            </Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            </View>
+                            </TouchableOpacity>
                         );
                     })}
                 </View>

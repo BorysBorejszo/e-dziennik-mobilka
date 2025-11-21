@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import UserGate from './components/UserGate';
 import { UserProvider } from './context/UserContext';
 import { ThemeProvider } from './theme/ThemeContext';
+import { SidebarProvider } from './components/ui/sidebar';
 
 export default function RootLayout() {
   return (
@@ -11,9 +12,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <UserProvider>
-            <UserGate>
-              <Slot />
-            </UserGate>
+            <SidebarProvider>
+              <UserGate>
+                <Slot />
+              </UserGate>
+            </SidebarProvider>
           </UserProvider>
         </ThemeProvider>
       </SafeAreaProvider>

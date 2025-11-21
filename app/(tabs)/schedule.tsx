@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -7,12 +8,38 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { getUserSchedule, Lesson } from "../api/schedule";
 import Header from "../components/Header";
+import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
 const Schedule: React.FC = () => {
+  const { user } = useUser();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [weekOffset, setWeekOffset] = useState(0); // 0 = this week, -1 previous, +1 next
+  const [mockLessons, setMockLessons] = useState<Lesson[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch schedule data
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchSchedule = async () => {
+      setLoading(true);
+      try {
+        const scheduleData = await getUserSchedule(user.id);
+        const daySchedule = scheduleData.schedule.find(d => d.dayIndex === selectedIndex);
+        setMockLessons(daySchedule?.lessons || []);
+      } catch (error) {
+        console.error("Failed to fetch schedule:", error);
+        setMockLessons([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSchedule();
+  }, [user, selectedIndex]);
 
   // Helper: start of week (Monday)
   const getStartOfWeek = (d: Date) => {
@@ -254,7 +281,43 @@ const Schedule: React.FC = () => {
         </View>
       </Modal>
 
-      {/* Lesson blocks removed per request */}
+      {/* Lesson blocks */}
+      <View className="px-4 mt-6 mb-8">
+        {loading ? (
+          <View className="items-center justify-center py-12">
+            <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Ładowanie planu...</Text>
+          </View>
+        ) : mockLessons.length === 0 ? (
+          <View className="items-center justify-center py-12">
+            <Ionicons name="calendar-outline" size={48} color={theme === 'dark' ? '#4b5563' : '#9ca3af'} />
+            <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-4 text-center`}>
+              Brak lekcji w tym dniu
+            </Text>
+          </View>
+        ) : (
+          mockLessons.map((lesson, index) => (
+            <View 
+              key={lesson.id} 
+              className={`mb-3 p-4 rounded-xl ${theme === 'dark' ? 'bg-neutral-900 border border-neutral-800' : 'bg-white border border-gray-200'} shadow`}
+            >
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className={`${textClass} text-lg font-bold`}>{lesson.subject}</Text>
+                <View className={`px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-100'}`}>
+                  <Text className="text-blue-500 text-xs font-semibold">{lesson.time}</Text>
+                </View>
+              </View>
+              <View className="flex-row items-center mt-1">
+                <Ionicons name="location-outline" size={16} color={theme === 'dark' ? '#9ca3af' : '#6b7280'} />
+                <Text className={`ml-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{lesson.room}</Text>
+              </View>
+              <View className="flex-row items-center mt-1">
+                <Ionicons name="person-outline" size={16} color={theme === 'dark' ? '#9ca3af' : '#6b7280'} />
+                <Text className={`ml-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{lesson.teacher}</Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 };

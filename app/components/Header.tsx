@@ -18,25 +18,19 @@ export default function Header({ title, subtitle, children }: Props) {
 
     return (
         <View style={{ backgroundColor: bg, zIndex: 20 }} className="px-4 pb-4">
-            <View className="flex-row items-center justify-between">
-                <View className="flex-row items-start">
-                    <SidebarTrigger style={{ marginRight: 10, marginTop: 4 }}>
+            <View className="flex-row items-center justify-between min-h-[64px]">
+                <View className="flex-row items-center">
+                    <SidebarTrigger style={{ marginRight: 10 }}>
                         <Entypo name="menu" size={26} color="#60A5FA" />
                     </SidebarTrigger>
-
                     <View>
-                        <Text className={`${titleClass} text-3xl font-bold`}>
-                            {title}
-                        </Text>
+                        <Text className={`${titleClass} text-3xl font-bold`}>{title}</Text>
                         {subtitle ? (
-                            <Text className={`${subtitleClass} text-lg mt-1`}>
-                                {subtitle}
-                            </Text>
+                            <Text className={`${subtitleClass} text-lg mt-1`}>{subtitle}</Text>
                         ) : null}
                     </View>
                 </View>
-
-                {children && <View className="ml-2">{children}</View>}
+                {children && <View className="ml-2 items-center justify-center">{children}</View>}
             </View>
         </View>
     );

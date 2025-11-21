@@ -1,15 +1,20 @@
-import React from 'react';
-import { ThemeProvider } from './theme/ThemeContext';
+import { Slot } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Slot } from 'expo-router';
+import UserGate from './components/UserGate';
+import { UserProvider } from './context/UserContext';
+import { ThemeProvider } from './theme/ThemeContext';
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <Slot />
+          <UserProvider>
+            <UserGate>
+              <Slot />
+            </UserGate>
+          </UserProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

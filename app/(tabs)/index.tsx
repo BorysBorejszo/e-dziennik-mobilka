@@ -2,8 +2,10 @@ import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { useEffect, useState } from "react";
 import { LayoutAnimation, Platform, ScrollView, Text, TouchableOpacity, UIManager, View } from "react-native";
 import Header from "../components/Header";
+import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 export default function App() {
+  const { user } = useUser();
   const today = new Date();
   const formattedDate = today.toLocaleDateString("pl-PL", {
     weekday: "long",
@@ -36,7 +38,7 @@ export default function App() {
       style={{ backgroundColor: bg }}
     >
   {/* Header (greeting + date) - direct child so it becomes sticky */}
-      <Header title={`Witaj, User!`} subtitle={formattedDate} />
+  <Header title={`Witaj, ${user?.name ?? 'User'}!`} subtitle={formattedDate} />
 
   <View className="flex-1">
         {/* Two small cards aligned left and right using flex-row */}

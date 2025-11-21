@@ -1,32 +1,31 @@
-import Entypo from "@expo/vector-icons/Entypo";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useRouter, useSegments } from "expo-router";
-import "../globals.css";
-import {
-  PanGestureHandler,
-  State,
-  GestureHandlerRootView,
-} from "react-native-gesture-handler";
-import {
-  View,
-  Animated,
-  Dimensions,
-  TouchableOpacity,
-  Text,
-} from "react-native";
-import SafeView from "../components/SafeView";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as React from "react";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
+import Entypo from "@expo/vector-icons/Entypo";
+import { useRouter, useSegments } from "expo-router";
+import * as React from "react";
+import {
+    Animated,
+    Dimensions,
+    Text,
+    TouchableOpacity,
+    View
+} from "react-native";
+import {
+    GestureHandlerRootView,
+    PanGestureHandler,
+    State,
+} from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AppSidebar from "../components/app-sidebar";
+import SafeView from "../components/SafeView";
+import { SidebarProvider } from "../components/ui/sidebar";
+import "../globals.css";
+import { useTheme } from "../theme/ThemeContext";
+import AttendancePage from "./attendance";
+import GradesPage from "./grades";
 import IndexPage from "./index";
+import MessagesPage from "./messages";
 import SchedulePage from "./schedule";
 import SettingsPage from "./settings";
-import GradesPage from "./grades";
-import AttendancePage from "./attendance";
-import MessagesPage from "./messages";
-import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar";
-import AppSidebar from "../components/app-sidebar";
-import { useTheme } from "../theme/ThemeContext";
 
 export default function Layout() {
   const router = useRouter();
@@ -195,6 +194,11 @@ export default function Layout() {
 
   const { theme } = useTheme();
 
+  // Re-enabled swipe on Android with direction filtering (vertical drags fail early).
+  // Previously disabled due to nested ScrollView conflicts; failOffsetY + logic above
+  // now ensures vertical scroll keeps priority while horizontal swipe changes pages.
+  const swipeEnabled = true;
+
   const bg = theme === "dark" ? "#000" : "#fff";
   const tabBarBg = theme === "dark" ? "#0b0b0b" : "#f8fafc";
   const tabBarBorder = theme === "dark" ? "#374151" : "#e5e7eb";
@@ -218,10 +222,12 @@ export default function Layout() {
             <PanGestureHandler
               onGestureEvent={onGestureJS}
               onHandlerStateChange={handleStateChange}
-              activeOffsetX={[-20, 20]}
-              // if user moves vertically more than 20px, fail this handler so inner ScrollViews keep control
-              failOffsetY={[-20, 20]}
-              // we'll handle gesture movement in JS above to better distinguish vertical vs horizontal drags
+              // Slightly lower horizontal threshold for quicker engagement.
+              activeOffsetX={[-15, 15]}
+              // If vertical movement exceeds 18px early, fail to let inner ScrollViews handle it.
+              failOffsetY={[-18, 18]}
+              enabled={swipeEnabled}
+              // JS handler differentiates horizontal vs vertical to avoid hijacking vertical scroll.
             >
               <Animated.View
                 style={{
@@ -244,7 +250,11 @@ export default function Layout() {
                     AttendancePage,
                     MessagesPage,
                   ].map((Page, idx) => (
-                    <View key={routes[idx]} style={{ width: screenWidth }}>
+                    // ensure each page fills available height so inner ScrollViews can size correctly
+                    <View
+                      key={routes[idx]}
+                      style={{ width: screenWidth, flex: 1 }}
+                    >
                       <Page />
                     </View>
                   ))}

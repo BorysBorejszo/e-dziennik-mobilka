@@ -1,18 +1,20 @@
-import { ScrollView, Text, View, TouchableOpacity } from "react-native";
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from "expo-router";
-import Entypo from "@expo/vector-icons/Entypo";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import AntDesign from "@expo/vector-icons/AntDesign";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import * as React from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import Header from "../components/Header";
+import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function Settings() {
   const router = useRouter();
   const { theme } = useTheme();
-  const bg = theme === "dark" ? "#000" : "#fff";
-  const textClass = theme === "dark" ? "text-white" : "text-black";
+  const { clearUser } = useUser();
+  const bg = theme === 'dark' ? '#000' : '#fff';
+  const textClass = theme === 'dark' ? 'text-white' : 'text-black';
+
+  const handleLogout = () => {
+    clearUser();
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
@@ -222,7 +224,7 @@ export default function Settings() {
           <View
             className={`mt-3 rounded-xl w-full overflow-hidden border ${theme === "dark" ? "border-gray-800 bg-black" : "border-gray-200 bg-white"}`}
           >
-            <TouchableOpacity className="flex-row items-center px-4 py-4">
+            <TouchableOpacity onPress={handleLogout} className="flex-row items-center px-4 py-4">
               <View
                 className={`w-12 h-12 ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} rounded-lg mr-4 items-center justify-center`}
               >

@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
@@ -5,7 +6,6 @@ import { calculateWeightedAverage, getUserGrades, SubjectGrades } from "../api/g
 import Header from "../components/Header";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
-import { useRouter } from "expo-router";
 
 export default function Grades() {
     const { theme } = useTheme();
@@ -82,7 +82,7 @@ export default function Grades() {
             scrollEventThrottle={16}
             refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={theme === 'dark' ? '#fff' : '#000'} />}
         >
-            <Header title="Oceny">
+            <Header title="Oceny" subtitle="Podsumowanie ocen">
                 {showCompact && (
                     <View className="flex-row items-center gap-3">
                         <View className="flex-row items-center gap-1.5">

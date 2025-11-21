@@ -21,7 +21,7 @@ export default function Header({ title, subtitle, children }: Props) {
     return (
         <View style={{ backgroundColor: bg, zIndex: 20, paddingTop: insets.top }} className="px-4 pb-4">
             <View className="flex-row items-center justify-between min-h-[64px]">
-                <View className="flex-row items-center">
+                <View className="flex-row items-center flex-1">
                     <SidebarTrigger style={{ marginRight: 10 }}>
                         <Entypo name="menu" size={26} color="#60A5FA" />
                     </SidebarTrigger>

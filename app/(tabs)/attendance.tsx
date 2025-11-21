@@ -52,7 +52,7 @@ export default function attendance() {
       showsVerticalScrollIndicator={false}
     >
   {/* Header as direct child for sticky behavior */}
-      <Header title="Frekwencja">
+      <Header title="Frekwencja" subtitle="Podsumowanie frekwencji">
         {showCompact && (
           <View className="flex-row items-center gap-3">
             <View className="flex-row items-center gap-1.5">

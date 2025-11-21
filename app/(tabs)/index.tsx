@@ -1,11 +1,17 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { useEffect, useState } from "react";
 import { LayoutAnimation, Platform, ScrollView, Text, TouchableOpacity, UIManager, View } from "react-native";
+import { getUserHomeData, TodayLesson, UpdateItem } from "../api/home";
 import Header from "../components/Header";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
+
 export default function App() {
   const { user } = useUser();
+  const [todayLessons, setTodayLessons] = useState<TodayLesson[]>([]);
+  const [recentUpdates, setRecentUpdates] = useState<UpdateItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const today = new Date();
   const formattedDate = today.toLocaleDateString("pl-PL", {
     weekday: "long",
@@ -25,61 +31,33 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const fetchHomeData = async () => {
+      if (!user) return;
+      setLoading(true);
+      try {
+        const data = await getUserHomeData(user.id);
+        setTodayLessons(data.todayLessons);
+        setRecentUpdates(data.recentUpdates);
+      } catch (error) {
+        console.error("Failed to fetch home data:", error);
+        setTodayLessons([]);
+        setRecentUpdates([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHomeData();
+  }, [user?.id]);
+
   const [scheduleCollapsed, setScheduleCollapsed] = useState(false);
   const [updatesCollapsed, setUpdatesCollapsed] = useState(false);
   const expandedHeight = 384; // corresponds roughly to h-96
   const collapsedHeight = 96; // slightly larger collapsed height
 
-  // Mock data for today's lessons - different for each user
-  const getTodayLessons = (userId: number) => {
-    if (userId === 1) {
-      // Jan Kowalski
-      return [
-        { id: 1, subject: "Matematyka", time: "8:00 - 8:45", room: "Sala 12" },
-        { id: 2, subject: "Język Polski", time: "8:55 - 9:40", room: "Sala 8" },
-        { id: 3, subject: "Fizyka", time: "9:50 - 10:35", room: "Lab 3" },
-        { id: 4, subject: "WF", time: "10:45 - 11:30", room: "Sala Gym" },
-      ];
-    } else {
-      // Anna Nowak
-      return [
-        { id: 1, subject: "Biologia", time: "8:00 - 8:45", room: "Lab 1" },
-        { id: 2, subject: "Matematyka", time: "8:55 - 9:40", room: "Sala 14" },
-        { id: 3, subject: "Język Angielski", time: "9:50 - 10:35", room: "Sala 17" },
-        { id: 4, subject: "Historia", time: "10:45 - 11:30", room: "Sala 10" },
-      ];
-    }
-  };
-
-  // Mock data for updates/announcements - different for each user
-  const getRecentUpdates = (userId: number) => {
-    if (userId === 1) {
-      // Jan Kowalski
-      return [
-        { id: 1, type: "grade", title: "Nowa ocena z Matematyki", desc: "4.0 - Praca klasowa", time: "2 godz. temu" },
-        { id: 2, type: "message", title: "Wiadomość od M. Nowak", desc: "Proszę przygotować się do sprawdzianu...", time: "4 godz. temu" },
-        { id: 3, type: "announcement", title: "Ogłoszenie szkolne", desc: "Jutro planowana wycieczka do muzeum", time: "Wczoraj" },
-      ];
-    } else {
-      // Anna Nowak
-      return [
-        { id: 1, type: "grade", title: "Nowa ocena z Biologii", desc: "6.0 - Projekt ekologiczny", time: "1 godz. temu" },
-        { id: 2, type: "message", title: "Gratulacje od K. Jankowska", desc: "Doskonały wynik z testu matematycznego!", time: "3 godz. temu" },
-        { id: 3, type: "announcement", title: "Zaproszenie do konkursu", desc: "Konkurs recytatorski - 5 grudnia", time: "Wczoraj" },
-      ];
-    }
-  };
-
-  const todayLessons = getTodayLessons(user?.id || 1);
-  const recentUpdates = getRecentUpdates(user?.id || 1);
-
   // Get next lesson info
-  const getNextLesson = (userId: number) => {
-    const lessons = getTodayLessons(userId);
-    return lessons[0] || { subject: "Brak", time: "---" };
-  };
-
-  const nextLesson = getNextLesson(user?.id || 1);
+  const nextLesson = todayLessons.length > 0 ? todayLessons[0] : { subject: "Brak", time: "---" };
 
   return (
     <ScrollView

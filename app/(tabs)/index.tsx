@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { LayoutAnimation, Platform, ScrollView, Text, TouchableOpacity, UIManager, View } from "react-native";
 import { getUserHomeData, TodayLesson, UpdateItem } from "../api/home";
 import Header from "../components/Header";
+import Card from "../components/ui/Card";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -72,21 +73,22 @@ export default function App() {
   <View className="flex-1">
         {/* Two small cards aligned left and right using flex-row */}
         <View className="mt-4 px-4 flex-row items-start">
-          <View className={`flex-1 mr-2 h-36 ${theme === 'dark' ? 'bg-black border-gray-800' : 'bg-white border-gray-200'} border rounded-xl p-4`}>
+          <Card className="flex-1 mr-2 h-36 p-4">
             <View className={`w-12 h-12 ${theme === 'dark' ? 'bg-[#0a1828]' : 'bg-blue-100'} rounded-lg items-center justify-center mb-2`}>
               <Ionicons name="time-outline" size={24} color="#60A5FA" />
             </View>
             <Text className={`${textClass} text-sm font-semibold mb-1`}>Następna lekcja</Text>
             <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-xs`}>{nextLesson.subject}</Text>
             <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-xs`}>{nextLesson.time}</Text>
-          </View>
-          <View className={`flex-1 ml-2 h-36 ${theme === 'dark' ? 'bg-black border-gray-800' : 'bg-white border-gray-200'} border rounded-xl p-4`}>
+          </Card>
+
+          <Card className="flex-1 ml-2 h-36 p-4">
             <View className={`w-12 h-12 ${theme === 'dark' ? 'bg-yellow-950' : 'bg-yellow-200'} rounded-lg items-center justify-center mb-2`}>
               <Ionicons name="trending-up" size={24} color="yellow" />
             </View>
             <Text className={`${textClass} text-sm font-semibold mb-1`}>Średnia</Text>
             <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-2xl font-bold`}>{user?.grades.average ?? '4.6'}</Text>
-          </View>
+          </Card>
         </View>
 
         {/* Title + big schedule card */}
@@ -103,10 +105,7 @@ export default function App() {
               <Ionicons name={scheduleCollapsed ? "chevron-down" : "chevron-up"} size={26} color={theme === 'dark' ? '#fff' : '#000'} />
             </TouchableOpacity>
           </View>
-          <View
-            className={`mt-3 ${theme === 'dark' ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'} border rounded-xl w-full overflow-hidden`}
-            style={{ height: scheduleCollapsed ? collapsedHeight : expandedHeight }}
-          >
+          <Card className="mt-3 w-full overflow-hidden" style={{ height: scheduleCollapsed ? collapsedHeight : expandedHeight }}>
             <View className="p-4">
               {scheduleCollapsed ? (
                 // Show only first lesson when collapsed
@@ -132,7 +131,7 @@ export default function App() {
                 ))
               )}
             </View>
-          </View>
+          </Card>
         </View>
 
         <View className="px-4 mt-4">
@@ -149,10 +148,7 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
-          <View
-            className={`mt-3 ${theme === 'dark' ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'} border rounded-xl w-full overflow-hidden`}
-            style={{ height: updatesCollapsed ? collapsedHeight : expandedHeight }}
-          >
+          <Card className="mt-3 w-full overflow-hidden" style={{ height: updatesCollapsed ? collapsedHeight : expandedHeight }}>
             <View className="p-4">
               {updatesCollapsed ? (
                 // Show only first update when collapsed
@@ -211,7 +207,7 @@ export default function App() {
                 ))
               )}
             </View>
-          </View>
+          </Card>
         </View>
       </View>
     </ScrollView>

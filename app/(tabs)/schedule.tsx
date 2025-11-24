@@ -1,15 +1,17 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Modal,
-  Pressable,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    Modal,
+    Pressable,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { getUserSchedule, Lesson } from "../api/schedule";
 import Header from "../components/Header";
+import Card from "../components/ui/Card";
+import EmptyState from "../components/ui/EmptyState";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -166,9 +168,7 @@ const Schedule: React.FC = () => {
       <Header title="Plan lekcji" subtitle={dateLabel} />
 
       {/* Week picker card */}
-      <View
-        className={`mx-4 mt-6 rounded-2xl ${theme === "dark" ? "bg-neutral-800/30 border-neutral-800" : "bg-white border-gray-200"} border p-4 shadow-lg`}
-      >
+      <Card className={`mx-4 mt-6 rounded-2xl p-4 shadow-lg`}>
         <View className="flex-row items-center justify-between mb-3">
           <TouchableOpacity
             onPress={() => setWeekOffset((w) => w - 1)}
@@ -230,7 +230,7 @@ const Schedule: React.FC = () => {
             </Pressable>
           ))}
         </View>
-      </View>
+      </Card>
 
       {/* Calendar modal */}
       <Modal visible={showCalendar} transparent animationType="fade">
@@ -288,18 +288,13 @@ const Schedule: React.FC = () => {
             <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Ładowanie planu...</Text>
           </View>
         ) : mockLessons.length === 0 ? (
-          <View className="items-center justify-center py-12">
-            <Ionicons name="calendar-outline" size={48} color={theme === 'dark' ? '#4b5563' : '#9ca3af'} />
-            <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-4 text-center`}>
-              Brak lekcji w tym dniu
-            </Text>
-          </View>
+          <EmptyState
+            icon={<Ionicons name="calendar-outline" size={48} color={theme === 'dark' ? '#4b5563' : '#9ca3af'} />}
+            title="Brak lekcji w tym dniu"
+          />
         ) : (
           mockLessons.map((lesson, index) => (
-            <View 
-              key={lesson.id} 
-              className={`mb-3 p-4 rounded-xl ${theme === 'dark' ? 'bg-neutral-900 border border-neutral-800' : 'bg-white border border-gray-200'} shadow`}
-            >
+            <Card key={lesson.id} className="mb-3 p-4">
               <View className="flex-row items-center justify-between mb-2">
                 <Text className={`${textClass} text-lg font-bold`}>{lesson.subject}</Text>
                 <View className={`px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-100'}`}>
@@ -314,7 +309,7 @@ const Schedule: React.FC = () => {
                 <Ionicons name="person-outline" size={16} color={theme === 'dark' ? '#9ca3af' : '#6b7280'} />
                 <Text className={`ml-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{lesson.teacher}</Text>
               </View>
-            </View>
+            </Card>
           ))
         )}
       </View>

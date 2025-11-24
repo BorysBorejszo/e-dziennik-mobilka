@@ -11,6 +11,9 @@ import {
 } from "react-native";
 import { getUserMessages, Message } from "../api/messages";
 import Header from "../components/Header";
+import Avatar from "../components/ui/Avatar";
+import Card from "../components/ui/Card";
+import EmptyState from "../components/ui/EmptyState";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -84,49 +87,41 @@ export default function Messages() {
         {/* Messages list */}
         <View className="px-4 mt-4">
           {filteredMessages.length === 0 ? (
-            <View className="items-center justify-center py-12">
-              <Ionicons name="mail-outline" size={48} color={theme === 'dark' ? '#4b5563' : '#9ca3af'} />
-              <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-4 text-center`}>
-                {search ? 'Nie znaleziono wiadomości' : 'Brak wiadomości'}
-              </Text>
-            </View>
+            <EmptyState
+              icon={<Ionicons name="mail-outline" size={48} color={theme === 'dark' ? '#4b5563' : '#9ca3af'} />}
+              title={search ? 'Nie znaleziono wiadomości' : 'Brak wiadomości'}
+            />
           ) : (
             filteredMessages.map((message) => (
-              <TouchableOpacity
-                key={message.id}
-                onPress={() => openMessage(message.id)}
-                className={`mb-3 p-4 rounded-xl ${theme === 'dark' ? 'bg-neutral-900 border border-neutral-800' : 'bg-white border border-gray-200'} ${message.unread ? (theme === 'dark' ? 'border-blue-900' : 'border-blue-200') : ''}`}
-                activeOpacity={0.7}
-              >
-                <View className="flex-row items-start">
-                  {/* Avatar */}
-                  <View className={`w-12 h-12 rounded-full ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-100'} items-center justify-center mr-3`}>
-                    <Text className="text-blue-500 font-semibold text-lg">{message.avatar}</Text>
-                  </View>
-                  
-                  {/* Message content */}
-                  <View className="flex-1">
-                    <View className="flex-row items-center justify-between mb-1">
-                      <Text className={`${textClass} font-semibold text-base ${message.unread ? 'font-bold' : ''}`}>
-                        {message.sender}
-                      </Text>
-                      <Text className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} text-xs`}>
-                        {message.time}
-                      </Text>
-                    </View>
-                    <Text className={`${textClass} text-sm mb-1 ${message.unread ? 'font-semibold' : ''}`}>
-                      {message.subject}
-                    </Text>
-                    <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm`} numberOfLines={2}>
-                      {message.preview}
-                    </Text>
-                    {message.unread && (
-                      <View className="mt-2">
-                        <View className="w-2 h-2 rounded-full bg-blue-500" />
+              <TouchableOpacity key={message.id} onPress={() => openMessage(message.id)} activeOpacity={0.7}>
+                <Card className={`mb-3 p-4 ${message.unread ? (theme === 'dark' ? 'border-blue-900' : 'border-blue-200') : ''}`}>
+                  <View className="flex-row items-start">
+                    <Avatar label={message.avatar} unread={message.unread} />
+
+                    {/* Message content */}
+                    <View className="flex-1">
+                      <View className="flex-row items-center justify-between mb-1">
+                        <Text className={`${textClass} font-semibold text-base ${message.unread ? 'font-bold' : ''}`}>
+                          {message.sender}
+                        </Text>
+                        <Text className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} text-xs`}>
+                          {message.time}
+                        </Text>
                       </View>
-                    )}
+                      <Text className={`${textClass} text-sm mb-1 ${message.unread ? 'font-semibold' : ''}`}>
+                        {message.subject}
+                      </Text>
+                      <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm`} numberOfLines={2}>
+                        {message.preview}
+                      </Text>
+                      {message.unread && (
+                        <View className="mt-2">
+                          <View className="w-2 h-2 rounded-full bg-blue-500" />
+                        </View>
+                      )}
+                    </View>
                   </View>
-                </View>
+                </Card>
               </TouchableOpacity>
             ))
           )}

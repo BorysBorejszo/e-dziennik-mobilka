@@ -76,15 +76,15 @@ export default function attendance() {
                 <Text className={`${textClass} text-5xl font-bold mt-2`}>{user?.attendance.percentage ?? '—'}</Text>
 
                 <View className="mt-3 flex-row px-1">
-                  <View className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${theme === 'dark' ? 'bg-gray-900 border border-gray-800' : 'bg-gray-100 border border-gray-200'}`}>
+                  <View className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${theme === 'dark' ? 'bg-neutral-900 border border-neutral-800' : 'bg-gray-100 border border-gray-200'}`}>
                     <Text className="text-green-400 text-lg font-bold">{user?.attendance.present ?? 0}</Text>
                     <Text className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>Obecności</Text>
                   </View>
-                  <View className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${theme === 'dark' ? 'bg-gray-900 border border-gray-800' : 'bg-gray-100 border border-gray-200'}`}>
+                  <View className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${theme === 'dark' ? 'bg-neutral-900 border border-neutral-800' : 'bg-gray-100 border border-gray-200'}`}>
                     <Text className="text-amber-400 text-lg font-bold">{user?.attendance.late ?? 0}</Text>
                     <Text className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>Spóźnienia</Text>
                   </View>
-                  <View className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${theme === 'dark' ? 'bg-gray-900 border border-gray-800' : 'bg-gray-100 border border-gray-200'}`}>
+                  <View className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${theme === 'dark' ? 'bg-neutral-900 border border-neutral-800' : 'bg-gray-100 border border-gray-200'}`}>
                     <Text className="text-red-400 text-lg font-bold">{user?.attendance.absent ?? 0}</Text>
                     <Text className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>Nieobecności</Text>
                   </View>

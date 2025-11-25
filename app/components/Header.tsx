@@ -19,7 +19,7 @@ export default function Header({ title, subtitle, children }: Props) {
     const subtitleClass = theme === "dark" ? "text-gray-400" : "text-gray-600";
 
     return (
-        <View style={{ backgroundColor: bg, zIndex: 20, paddingTop: insets.top }} className="px-4 pb-4">
+        <View style={{ backgroundColor: bg, zIndex: 20}} className="px-4 pb-4">
             <View className="flex-row items-center justify-between min-h-[64px]">
                 <View className="flex-row items-center flex-1">
                     <SidebarTrigger style={{ marginRight: 10 }}>

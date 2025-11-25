@@ -14,7 +14,19 @@ export type LoginResponse = {
   refresh: string;
 };
 
-let BASE_URL = 'http://127.0.0.1';
+export class ApiError extends Error {
+  status?: number;
+  details?: string;
+  constructor(message: string, status?: number, details?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.details = details;
+  }
+}
+
+// default to the remote dziennik server
+let BASE_URL = 'http://dziennik.polandcentral.cloudapp.azure.com';
 const ACCESS_KEY = '@e-dziennik:access';
 const REFRESH_KEY = '@e-dziennik:refresh';
 
@@ -45,12 +57,48 @@ export const login = async (username: string, password: string): Promise<LoginRe
     } catch {
       // keep raw text
     }
-    throw new Error(`Login failed (${res.status}): ${text}`);
+    throw new ApiError(`Login failed (${res.status}): ${text}`, res.status, text);
   }
 
   const data = await res.json();
   if (!data || typeof data.access !== 'string' || typeof data.refresh !== 'string') {
     throw new Error('Login response has unexpected shape');
+  }
+
+  await storeTokens(data.access, data.refresh);
+  return { access: data.access, refresh: data.refresh };
+};
+
+/**
+ * Register a new account. Expects the backend to return the same { access, refresh } shape.
+ * If registration succeeds tokens are persisted the same as login.
+ */
+export const register = async (username: string, password: string, extra: Record<string, any> = {}): Promise<LoginResponse> => {
+  const url = `${BASE_URL}/api/auth/register/`;
+
+  const body = JSON.stringify({ username, password, ...extra });
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+
+  if (!res.ok) {
+    let text = await res.text();
+    try {
+      const json = JSON.parse(text);
+      if (json.detail) text = json.detail;
+      else text = JSON.stringify(json);
+    } catch {
+      // keep raw
+    }
+    throw new ApiError(`Registration failed (${res.status}): ${text}`, res.status, text);
+  }
+
+  const data = await res.json();
+  if (!data || typeof data.access !== 'string' || typeof data.refresh !== 'string') {
+    throw new Error('Registration response has unexpected shape');
   }
 
   await storeTokens(data.access, data.refresh);
@@ -183,4 +231,5 @@ export default {
   clearTokens,
   refreshAuth,
   authenticatedFetch,
+  register,
 };

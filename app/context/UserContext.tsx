@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import auth from '../api/auth';
 
 export interface UserData {
   id: number;
@@ -65,13 +66,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     (async () => {
       try {
+        // if tokens exist, consider user authenticated; map to first mock user
+        const access = await auth.getAccessToken();
+        if (access) {
+          setUserState(MOCK_USERS[0]);
+          setReady(true);
+          return;
+        }
+
         const idStr = await AsyncStorage.getItem('selectedUserId');
         if (idStr) {
           const id = Number(idStr);
           const found = MOCK_USERS.find((u) => u.id === id) || null;
           setUserState(found);
         }
-      } catch {}
+      } catch {
+        // ignore
+      }
       setReady(true);
     })();
   }, []);
@@ -81,16 +92,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     AsyncStorage.setItem('selectedUserId', String(u.id)).catch(() => {});
   };
 
+  const clearUser = () => {
+    setUserState(null);
+    AsyncStorage.removeItem('selectedUserId').catch(() => {});
+    // also clear tokens in case of logout
+    auth.clearTokens().catch(() => {});
+  };
+
   const switchUser = (userId: number) => {
     const found = MOCK_USERS.find((u) => u.id === userId);
     if (found) {
       setUser(found);
     }
-  };
-
-  const clearUser = () => {
-    setUserState(null);
-    AsyncStorage.removeItem('selectedUserId').catch(() => {});
   };
 
   return (

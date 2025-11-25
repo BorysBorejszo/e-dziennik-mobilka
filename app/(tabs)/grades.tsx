@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-import { calculateWeightedAverage, getUserGrades, SubjectGrades } from "../api/grades";
+import { calculateWeightedAverage, createGrade, getUserGrades, SubjectGrades } from "../api/grades";
 import Header from "../components/Header";
 import Card from "../components/ui/Card";
 import EmptyState from "../components/ui/EmptyState";
@@ -21,6 +21,18 @@ export default function Grades() {
     const [behaviorGrades, setBehaviorGrades] = useState<SubjectGrades | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    // add grade form
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newSubject, setNewSubject] = useState('');
+    const [newSubjectId, setNewSubjectId] = useState('');
+    const [newValue, setNewValue] = useState('');
+    const [newCategory, setNewCategory] = useState('');
+    const [newDate, setNewDate] = useState('');
+    const [gradeType, setGradeType] = useState<'standard' | 'periodic' | 'final'>('standard');
+    const [newOkres, setNewOkres] = useState('I');
+    const [newRokSzkolny, setNewRokSzkolny] = useState(`${new Date().getFullYear() - 1}/${new Date().getFullYear()}`);
+    const [creating, setCreating] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
 
     const load = async () => {
         if (!user) return;
@@ -123,6 +135,74 @@ export default function Grades() {
                     </View>
                 )}
             </Header>
+                {/* Add grade quick action */}
+                <View className="px-4 mt-3">
+                    <Card className="w-full p-3">
+                        <View className="flex-row items-center justify-between">
+                            <Text className={`${theme === "dark" ? "text-gray-400" : "text-gray-600"} text-base`}>Masz pomysł? Dodaj ocenę ręcznie.</Text>
+                            <TouchableOpacity activeOpacity={0.7} onPress={() => setShowAddForm((s) => !s)}>
+                                <View className="bg-blue-500 px-3 py-2 rounded">
+                                    <Text className="text-white">{showAddForm ? 'Anuluj' : 'Dodaj ocenę'}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
+                        {showAddForm && (
+                            <View className="mt-3">
+                                <TextInput value={newSubject} onChangeText={setNewSubject} placeholder="Przedmiot (nazwa)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                                <TextInput value={newSubjectId} onChangeText={setNewSubjectId} placeholder="Przedmiot ID (opcjonalne)" keyboardType="numeric" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                                <TextInput value={newValue} onChangeText={setNewValue} placeholder="Wartość (np. 5)" keyboardType="numeric" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                                <TextInput value={newCategory} onChangeText={setNewCategory} placeholder="Kategoria (np. Kartkówka)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                                <TextInput value={newDate} onChangeText={setNewDate} placeholder="Data (YYYY-MM-DD) - opcjonalnie" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+
+                                {/* grade type selector */}
+                                <View className="flex-row justify-between my-2">
+                                    <TouchableOpacity onPress={() => setGradeType('standard')} style={{ padding: 8, borderRadius: 6, backgroundColor: gradeType === 'standard' ? '#2563EB' : (theme === 'dark' ? '#111' : '#f3f4f6') }}>
+                                        <Text style={{ color: gradeType === 'standard' ? '#fff' : (theme === 'dark' ? '#fff' : '#000') }}>Ocena</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setGradeType('periodic')} style={{ padding: 8, borderRadius: 6, backgroundColor: gradeType === 'periodic' ? '#2563EB' : (theme === 'dark' ? '#111' : '#f3f4f6') }}>
+                                        <Text style={{ color: gradeType === 'periodic' ? '#fff' : (theme === 'dark' ? '#fff' : '#000') }}>Ocena okresowa</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setGradeType('final')} style={{ padding: 8, borderRadius: 6, backgroundColor: gradeType === 'final' ? '#2563EB' : (theme === 'dark' ? '#111' : '#f3f4f6') }}>
+                                        <Text style={{ color: gradeType === 'final' ? '#fff' : (theme === 'dark' ? '#fff' : '#000') }}>Ocena końcowa</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {gradeType === 'periodic' && (
+                                    <TextInput value={newOkres} onChangeText={setNewOkres} placeholder="Okres (np. I lub II)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                                )}
+                                {gradeType === 'final' && (
+                                    <TextInput value={newRokSzkolny} onChangeText={setNewRokSzkolny} placeholder="Rok szkolny (np. 2024/2025)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                                )}
+                                {formError && <Text className="text-red-500 mb-2">{formError}</Text>}
+                                <TouchableOpacity activeOpacity={0.8} onPress={async () => {
+                                    setFormError(null);
+                                    if (!user) { setFormError('Brak zalogowanego użytkownika'); return; }
+                                    if (!newSubject.trim()) { setFormError('Podaj przedmiot'); return; }
+                                    const v = Number(newValue);
+                                    if (!v || v < 1 || v > 6) { setFormError('Podaj poprawną wartość (1-6)'); return; }
+                                    setCreating(true);
+                                    try {
+                                        await createGrade({ userId: user.id, subject: newSubject.trim() || undefined, subjectId: newSubjectId ? Number(newSubjectId) : undefined, value: v, date: newDate || undefined, category: newCategory || undefined, type: gradeType, okres: gradeType === 'periodic' ? newOkres : undefined, rok_szkolny: gradeType === 'final' ? newRokSzkolny : undefined });
+                                        // reset and reload
+                                        setNewSubject(''); setNewValue(''); setNewCategory(''); setNewDate(''); setShowAddForm(false);
+                                        await load();
+                                    } catch (e: any) {
+                                        // show detailed server error when present
+                                        const msg = e?.message ?? String(e);
+                                        setFormError(msg);
+                                    } finally {
+                                        setCreating(false);
+                                    }
+                                }}>
+                                    <View className={`px-3 py-2 rounded ${creating ? 'bg-gray-400' : 'bg-green-600'}`}>
+                                        <Text className="text-white">{creating ? 'Wysyłanie...' : 'Zapisz ocenę'}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </Card>
+                </View>
 
             <View>
                 <Card className="mt-3 mx-4 h-32 overflow-hidden">

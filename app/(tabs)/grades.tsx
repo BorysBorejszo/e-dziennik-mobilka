@@ -25,6 +25,9 @@ export default function Grades() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [newSubject, setNewSubject] = useState('');
     const [newSubjectId, setNewSubjectId] = useState('');
+    const [subjectsList, setSubjectsList] = useState<Array<{ id: number; nazwa: string }>>([]);
+    const [subjectsLoading, setSubjectsLoading] = useState(false);
+    const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
     const [newValue, setNewValue] = useState('');
     const [newCategory, setNewCategory] = useState('');
     const [newDate, setNewDate] = useState('');
@@ -49,10 +52,28 @@ export default function Grades() {
         }
     };
 
+    const loadSubjectsList = async () => {
+        setSubjectsLoading(true);
+        try {
+            const s = await (await import('../api/grades')).listSubjects();
+            setSubjectsList(s);
+        } catch (e) {
+            setSubjectsList([]);
+        } finally {
+            setSubjectsLoading(false);
+        }
+    };
+
     useEffect(() => {
         load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
+
+    useEffect(() => {
+        // Preload subjects list when add form is opened
+        if (showAddForm) loadSubjectsList();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showAddForm]);
 
     const overallAverage = useMemo(() => {
         if (!subjects) return null;
@@ -149,8 +170,27 @@ export default function Grades() {
 
                         {showAddForm && (
                             <View className="mt-3">
-                                <TextInput value={newSubject} onChangeText={setNewSubject} placeholder="Przedmiot (nazwa)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
-                                <TextInput value={newSubjectId} onChangeText={setNewSubjectId} placeholder="Przedmiot ID (opcjonalne)" keyboardType="numeric" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                                {/* Subject selector: choose from API list instead of typing name */}
+                                <TouchableOpacity onPress={() => setShowSubjectDropdown((s) => !s)} style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 10, borderRadius: 6, marginBottom: 8, backgroundColor: theme === 'dark' ? '#0b1220' : '#fff' }}>
+                                    <Text style={{ color: newSubject ? (theme === 'dark' ? '#fff' : '#000') : '#9CA3AF' }}>{newSubject ? newSubject : (subjectsLoading ? 'Ładowanie przedmiotów...' : 'Wybierz przedmiot')}</Text>
+                                </TouchableOpacity>
+                                {showSubjectDropdown && (
+                                    <View style={{ maxHeight: 220, borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#eee', borderRadius: 8, marginBottom: 8, backgroundColor: theme === 'dark' ? '#05060a' : '#fff' }}>
+                                        <ScrollView>
+                                            {subjectsLoading && (
+                                                <View style={{ padding: 12 }}><Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Ładowanie...</Text></View>
+                                            )}
+                                            {!subjectsLoading && subjectsList.length === 0 && (
+                                                <View style={{ padding: 12 }}><Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Brak przedmiotów</Text></View>
+                                            )}
+                                            {!subjectsLoading && subjectsList.map((s) => (
+                                                <TouchableOpacity key={s.id} onPress={() => { setNewSubject(s.nazwa); setNewSubjectId(String(s.id)); setShowSubjectDropdown(false); }} style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: theme === 'dark' ? '#0f1724' : '#f3f4f6' }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{s.nazwa}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                )}
                                 <TextInput value={newValue} onChangeText={setNewValue} placeholder="Wartość (np. 5)" keyboardType="numeric" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
                                 <TextInput value={newCategory} onChangeText={setNewCategory} placeholder="Kategoria (np. Kartkówka)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
                                 <TextInput value={newDate} onChangeText={setNewDate} placeholder="Data (YYYY-MM-DD) - opcjonalnie" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
@@ -178,7 +218,7 @@ export default function Grades() {
                                 <TouchableOpacity activeOpacity={0.8} onPress={async () => {
                                     setFormError(null);
                                     if (!user) { setFormError('Brak zalogowanego użytkownika'); return; }
-                                    if (!newSubject.trim()) { setFormError('Podaj przedmiot'); return; }
+                                    if (!newSubject.trim()) { setFormError('Wybierz przedmiot'); return; }
                                     const v = Number(newValue);
                                     if (!v || v < 1 || v > 6) { setFormError('Podaj poprawną wartość (1-6)'); return; }
                                     setCreating(true);

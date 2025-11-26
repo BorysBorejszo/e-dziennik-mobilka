@@ -151,6 +151,23 @@ const extractList = (json: any) => {
   return null;
 };
 
+// List subjects (przedmioty) - used by UI when creating grades so user can pick from available subjects
+export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string }>> => {
+  const url = `${BASE}/api/przedmioty/`;
+  try {
+    const res = await fetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+    if (!res || !res.ok) {
+      return [];
+    }
+    const json = await res.json().catch(() => null);
+    const list = extractList(json) ?? (Array.isArray(json) ? json : null) ?? [];
+    // normalize items with id and nazwa/name/title
+    return (list as any[]).map((it: any) => ({ id: Number(it.id ?? it.pk ?? it.przedmiot_id ?? it.pk_id ?? -1), nazwa: it.nazwa ?? it.name ?? it.title ?? String(it.id ?? it.pk ?? '') })).filter((s) => s.id && s.nazwa);
+  } catch (e) {
+    return [];
+  }
+};
+
 const mapServerToGrade = (it: any): GradeItem => {
   const value = Number(it.wartosc ?? it.value ?? it.ocena ?? it.grade ?? 0) || 0;
   const label = it.etykieta ?? it.label ?? (value ? String(value) : undefined);

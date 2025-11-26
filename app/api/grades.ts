@@ -97,6 +97,51 @@ const resolveSubjectNames = async (ids: number[]): Promise<Record<number, string
   return out;
 };
 
+// Try to find a subject ID by its name (best-effort). Useful when user provides name but server
+// requires przedmiot_id. Returns number|null.
+const findSubjectIdByName = async (name: string): Promise<number | null> => {
+  if (!name) return null;
+  const patterns: Array<(q: string) => string> = [
+    (q) => `${BASE}/api/przedmioty/?search=${encodeURIComponent(q)}`,
+    (q) => `${BASE}/api/przedmioty/?nazwa=${encodeURIComponent(q)}`,
+    (q) => `${BASE}/api/przedmioty/?name=${encodeURIComponent(q)}`,
+    (q) => `${BASE}/api/przedmioty/`,
+    (q) => `${BASE}/api/przedmiot/`,
+  ];
+
+  const matchName = (obj: any, target: string) => {
+    const cand = (obj?.nazwa ?? obj?.name ?? obj?.title ?? '').toString().trim().toLowerCase();
+    return cand === target;
+  };
+
+  const target = name.trim().toLowerCase();
+  for (const makeUrl of patterns) {
+    const url = makeUrl(name);
+    try {
+      const res = await fetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+      if (!res || !res.ok) continue;
+      const json = await res.json().catch(() => null);
+      const list = extractList(json) ?? (Array.isArray(json) ? json : null);
+      if (Array.isArray(list)) {
+        // find exact match first
+        const found = list.find((it: any) => matchName(it, target));
+        if (found) return Number(found.id ?? found.pk ?? found.przedmiot_id ?? found.pk_id ?? null) || null;
+        // try fuzzy contains
+        const found2 = list.find((it: any) => (it?.nazwa ?? it?.name ?? it?.title ?? '').toString().toLowerCase().includes(target));
+        if (found2) return Number(found2.id ?? found2.pk ?? found2.przedmiot_id ?? found2.pk_id ?? null) || null;
+      }
+      if (json && typeof json === 'object') {
+        // single object
+        if (matchName(json, target)) return Number(json.id ?? json.pk ?? json.przedmiot_id ?? null) || null;
+      }
+    } catch (e) {
+      // ignore
+      continue;
+    }
+  }
+  return null;
+};
+
 const extractList = (json: any) => {
   if (!json) return null;
   if (Array.isArray(json)) return json;
@@ -270,33 +315,47 @@ export const createGrade = async (
   // or requires additional fields like nauczyciel_wpisujacy_id. We'll attempt variants in order and
   // return the first successful response. This helps work around server-side TypeError caused by
   // unexpected payload shapes.
-  const makeBody = (variant: 'name' | 'id' | 'both' | 'aliases') => {
-    const baseDate = payload.date ?? new Date().toISOString().slice(0, 10);
-    const teacher = (payload as any).nauczyciel_wpisujacy_id ?? null;
+  const makeBody = (variant: 'name' | 'id' | 'both' | 'aliases', pl: any = payload) => {
+    const baseDate = pl.date ?? new Date().toISOString().slice(0, 10);
+    const teacher = (pl as any).nauczyciel_wpisujacy_id ?? null;
     if (type === 'standard') {
-      if (variant === 'id') return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-  if (variant === 'both') return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-      if (variant === 'aliases') return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, uczen: payload.userId, user_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, wartosc_alias: payload.value, nauczyciel_wpisujacy_id: teacher };
-      return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, przedmiot: payload.subject ?? (payload.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
+      if (variant === 'id') return { wartosc: pl.value, data: baseDate, uczen_id: pl.userId, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+      if (variant === 'both') return { wartosc: pl.value, data: baseDate, uczen_id: pl.userId, przedmiot: pl.subject ?? pl.subjectId ?? null, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+      if (variant === 'aliases') return { wartosc: pl.value, data: baseDate, uczen_id: pl.userId, uczen: pl.userId, user_id: pl.userId, przedmiot: pl.subject ?? pl.subjectId ?? null, przedmiot_id: pl.subjectId ?? null, wartosc_alias: pl.value, nauczyciel_wpisujacy_id: teacher };
+      return { wartosc: pl.value, data: baseDate, uczen_id: pl.userId, przedmiot: pl.subject ?? (pl.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
     }
     if (type === 'periodic') {
-      if (variant === 'id') return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-  if (variant === 'both') return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-      if (variant === 'aliases') return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-      return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot: payload.subject ?? (payload.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
+      if (variant === 'id') return { wartosc: pl.value, okres: pl.okres ?? 'I', uczen_id: pl.userId, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+      if (variant === 'both') return { wartosc: pl.value, okres: pl.okres ?? 'I', uczen_id: pl.userId, przedmiot: pl.subject ?? pl.subjectId ?? null, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+      if (variant === 'aliases') return { wartosc: pl.value, okres: pl.okres ?? 'I', uczen_id: pl.userId, przedmiot: pl.subject ?? pl.subjectId ?? null, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+      return { wartosc: pl.value, okres: pl.okres ?? 'I', uczen_id: pl.userId, przedmiot: pl.subject ?? (pl.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
     }
     // final
-    if (variant === 'id') return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-  if (variant === 'both') return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-    if (variant === 'aliases') return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-    return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot: payload.subject ?? (payload.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
+    if (variant === 'id') return { wartosc: pl.value, rok_szkolny: pl.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: pl.userId, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+    if (variant === 'both') return { wartosc: pl.value, rok_szkolny: pl.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: pl.userId, przedmiot: pl.subject ?? pl.subjectId ?? null, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+    if (variant === 'aliases') return { wartosc: pl.value, rok_szkolny: pl.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: pl.userId, przedmiot: pl.subject ?? pl.subjectId ?? null, przedmiot_id: pl.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+    return { wartosc: pl.value, rok_szkolny: pl.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: pl.userId, przedmiot: pl.subject ?? (pl.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
   };
 
   const variants: Array<'name' | 'id' | 'both' | 'aliases'> = ['name', 'id', 'both', 'aliases'];
   let lastErr: any = null;
+  // If user supplied a subject name but no subjectId, attempt to resolve an id
+  let resolvedSubjectId: number | undefined = undefined;
+  if (payload.subject && !payload.subjectId) {
+    try {
+      const idFound = await findSubjectIdByName(payload.subject);
+      if (idFound) resolvedSubjectId = idFound;
+    } catch (e) {
+      // ignore failures, we'll still try name-based variants
+      // eslint-disable-next-line no-console
+      console.debug && console.debug('[grades] subject id resolution failed', e);
+    }
+  }
 
   for (const v of variants) {
-    const bodyCandidate = makeBody(v);
+    // build payload override including resolvedSubjectId (if any)
+    const pl = { ...payload, subjectId: resolvedSubjectId ?? payload.subjectId };
+    const bodyCandidate = makeBody(v, pl);
     try {
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(bodyCandidate) });
       const text = await res.text().catch(() => '');

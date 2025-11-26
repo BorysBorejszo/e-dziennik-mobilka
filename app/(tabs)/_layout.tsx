@@ -35,10 +35,10 @@ export default function Layout() {
   const routes = [
     "index",
     "schedule",
-    "settings",
     "grades",
     "attendance",
     "messages",
+    "settings",
   ];
 
   // determine current active segment (last segment)
@@ -245,10 +245,10 @@ export default function Layout() {
                   {[
                     IndexPage,
                     SchedulePage,
-                    SettingsPage,
                     GradesPage,
                     AttendancePage,
                     MessagesPage,
+                    SettingsPage,
                   ].map((Page, idx) => (
                     // ensure each page fills available height so inner ScrollViews can size correctly
                     <View

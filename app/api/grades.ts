@@ -210,10 +210,29 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
     }
   }
 
+  // Keep only items that belong to the requested user (some APIs return global lists when params are ignored).
+  const belongsToUser = (it: any, uid: number) => {
+    if (!it) return false;
+    const cand = Number(it.uczen_id ?? it.user_id ?? it.uczen ?? it.uczenId ?? it.student_id ?? it.studentId ?? it.user ?? NaN);
+    if (!Number.isNaN(cand)) return cand === uid;
+    // sometimes uczen is an object
+    if (it.uczen && typeof it.uczen === 'object') {
+      const cid = Number(it.uczen.id ?? it.uczen.pk ?? it.uczen.user_id ?? NaN);
+      if (!Number.isNaN(cid)) return cid === uid;
+    }
+    if (it.user && typeof it.user === 'object') {
+      const cid = Number(it.user.id ?? it.user.pk ?? NaN);
+      if (!Number.isNaN(cid)) return cid === uid;
+    }
+    return false;
+  };
+
+  const filteredByUser = allItems.filter((it) => belongsToUser(it, userId));
+
   // Deduplicate items (some endpoints may return overlapping records).
   const seen = new Set<string>();
   const uniqueItems: any[] = [];
-  for (const it of allItems) {
+  for (const it of filteredByUser) {
     const uid = it.id ?? it.pk ?? it.pk_id ?? null;
     // build a stable subject string for the fallback key so we don't lose textual names
     const subjForKey = (() => {

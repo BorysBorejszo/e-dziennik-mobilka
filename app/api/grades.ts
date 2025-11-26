@@ -233,60 +233,59 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
     uniqueItems.push(it);
   }
 
-  // Group items by subject (try several possible shapes for subject)
+  // Group items by subject, but only include subjects that exist on the server.
+  // Fetch canonical subjects list from the server so we can strictly include only those.
+  const subjectsListFromServer = await listSubjects().catch(() => [] as Array<{ id: number; nazwa: string }>);
+  const allowedIds = new Set<number>(subjectsListFromServer.map((s) => Number(s.id)));
+  const idToName = new Map<number, string>(subjectsListFromServer.map((s) => [Number(s.id), s.nazwa]));
+  const normalize = (s: string | undefined | null) => (s ?? '').toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const normalizedNameToCanonical = new Map<string, string>();
+  for (const s of subjectsListFromServer) {
+    normalizedNameToCanonical.set(normalize(s.nazwa), s.nazwa);
+  }
+
   const subjectsMap: Record<string, GradeItem[]> = {};
   for (const it of uniqueItems) {
-    const subj = (() => {
-      if (typeof it.przedmiot === 'string') return it.przedmiot;
-      if (it.przedmiot && typeof it.przedmiot === 'object') return it.przedmiot.nazwa ?? it.przedmiot.name ?? it.przedmiot.title ?? String(it.przedmiot.id ?? it.przedmiot.pk ?? '');
-      if (it.przedmiot_nazwa) return it.przedmiot_nazwa;
-      if (it.przedmiot_name) return it.przedmiot_name;
-      if (typeof it.przedmiot === 'number') return String(it.przedmiot);
-      if (typeof it.przedmiot_id === 'number' || typeof it.przedmiot_id === 'string') return String(it.przedmiot_id);
-      if (typeof it.przedmiotId === 'number' || typeof it.przedmiotId === 'string') return String(it.przedmiotId);
-      return it.subject ?? '—';
-    })();
+    // try to detect a server-side id first
+    const candidateId = Number(it.przedmiot_id ?? it.przedmiotId ?? (it.przedmiot && typeof it.przedmiot === 'object' ? (it.przedmiot.id ?? it.przedmiot.pk ?? null) : null) ?? (typeof it.przedmiot === 'number' ? it.przedmiot : NaN));
+
+    let keyName: string | null = null;
+    if (!Number.isNaN(candidateId) && allowedIds.has(candidateId)) {
+      // use canonical name for known id
+      keyName = idToName.get(candidateId) ?? `Przedmiot #${candidateId}`;
+    } else {
+      // try to extract a name string and match against server names
+      const rawName = typeof it.przedmiot === 'string' && it.przedmiot.trim()
+        ? it.przedmiot
+        : it.przedmiot_nazwa ?? it.przedmiot_name ?? it.subject ?? null;
+      if (rawName && String(rawName).trim()) {
+        const n = normalize(String(rawName));
+        // try flexible matching: allow substrings and small variations
+        for (const [canN, canonical] of normalizedNameToCanonical.entries()) {
+          if (canN.includes(n) || n.includes(canN)) {
+            keyName = canonical;
+            break;
+          }
+        }
+      }
+    }
+
+    // If we couldn't match this grade to a known subject, skip it entirely
+    if (!keyName) {
+      // eslint-disable-next-line no-console
+      // console.debug('[grades] skipping grade for unknown subject', it);
+      continue;
+    }
 
     const g = mapServerToGrade(it);
-    if (!subjectsMap[subj]) subjectsMap[subj] = [];
-    subjectsMap[subj].push(g);
+    if (!subjectsMap[keyName]) subjectsMap[keyName] = [];
+    subjectsMap[keyName].push(g);
   }
 
   const subjects: SubjectGrades[] = Object.keys(subjectsMap).map((k) => ({ subject: k, grades: subjectsMap[k] }));
 
   // try to detect behavior (Zachowanie)
   const behavior = subjects.find((s) => /zachow/i.test(s.subject));
-
-  // If subjects are numeric IDs (e.g. '1', '2'), try to resolve them to names by querying subject endpoints.
-  const numericKeys = Object.keys(subjectsMap).filter((k) => /^\d+$/.test(k)).map((k) => Number(k));
-  if (numericKeys.length > 0) {
-    try {
-      const resolved = await resolveSubjectNames(Array.from(new Set(numericKeys)));
-      const remapped: Record<string, GradeItem[]> = {};
-      for (const key of Object.keys(subjectsMap)) {
-        if (/^\d+$/.test(key)) {
-          const id = Number(key);
-          const name = resolved[id];
-          const newKey = name ?? `Przedmiot #${id}`;
-          if (!remapped[newKey]) remapped[newKey] = [];
-          remapped[newKey].push(...subjectsMap[key]);
-        } else {
-          if (!remapped[key]) remapped[key] = [];
-          remapped[key].push(...subjectsMap[key]);
-        }
-      }
-      const finalSubjects: SubjectGrades[] = Object.keys(remapped).map((k) => ({ subject: k, grades: remapped[k] }));
-      const finalBehavior = finalSubjects.find((s) => /zachow/i.test(s.subject));
-      return {
-        subjects: finalSubjects,
-        behavior: finalBehavior ? { subject: finalBehavior.subject, grades: finalBehavior.grades } : undefined,
-      };
-    } catch (e) {
-      // if resolution fails, fall back to original subjects
-      // eslint-disable-next-line no-console
-      console.warn('[grades] subject name resolution failed', e);
-    }
-  }
 
   return {
     subjects,

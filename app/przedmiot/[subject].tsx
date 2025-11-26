@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Modal, Text, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { calculateWeightedAverage, getUserGrades, SubjectGrades } from "../api/grades";
+import { calculateWeightedAverage, getUserGrades, GradeItem, SubjectGrades } from "../api/grades";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -18,6 +18,7 @@ export default function SubjectDetails() {
 
     const [subjectData, setSubjectData] = useState<SubjectGrades | null>(null);
     const [loading, setLoading] = useState(true);
+    const [selectedGrade, setSelectedGrade] = useState<GradeItem | null>(null);
 
     useEffect(() => {
         const load = async () => {
@@ -57,6 +58,15 @@ export default function SubjectDetails() {
             default:
                 return "bg-red-500";
         }
+    };
+
+    const badgeColorFor = (v: number) => {
+        if (v >= 6) return '#16A34A';
+        if (v >= 5) return '#10B981';
+        if (v >= 4) return '#3B82F6';
+        if (v >= 3) return '#F59E0B';
+        if (v >= 2) return '#F97316';
+        return '#EF4444';
     };
 
     return (
@@ -131,56 +141,109 @@ export default function SubjectDetails() {
                     {!loading &&
                         subjectData &&
                         subjectData.grades.map((grade, idx) => (
-                            <View
-                                key={idx}
-                                className={`mb-3 p-4 rounded-xl ${
-                                    theme === "dark"
-                                        ? "bg-neutral-900 border border-neutral-800"
-                                        : "bg-white border border-gray-200"
-                                } shadow`}
-                            >
-                                <View className="flex-row items-center justify-between">
-                                    <View className="flex-row items-center gap-3">
-                                        <View
-                                            className={`${chipBg(
-                                                grade.value
-                                            )} rounded-lg w-12 h-12 items-center justify-center`}
-                                        >
-                                            <Text className="text-white text-xl font-bold">
-                                                {grade.label ?? String(grade.value)}
-                                            </Text>
-                                        </View>
-                                        <View>
-                                            <Text className={`${textClass} text-lg font-semibold`}>
-                                                {grade.category || "Ocena"}
-                                            </Text>
-                                            {grade.weight && grade.weight > 1 && (
-                                                <Text
-                                                    className={`${
-                                                        theme === "dark"
-                                                            ? "text-gray-400"
-                                                            : "text-gray-600"
-                                                    } text-sm`}
-                                                >
-                                                    Waga: {grade.weight}
+                            <TouchableOpacity key={idx} activeOpacity={0.8} onPress={() => setSelectedGrade(grade)}>
+                                <View
+                                    className={`mb-3 p-4 rounded-xl ${
+                                        theme === "dark"
+                                            ? "bg-neutral-900 border border-neutral-800"
+                                            : "bg-white border border-gray-200"
+                                    } shadow`}
+                                >
+                                    <View className="flex-row items-center justify-between">
+                                        <View className="flex-row items-center gap-3">
+                                            <View
+                                                className={`${chipBg(
+                                                    grade.value
+                                                )} rounded-lg w-12 h-12 items-center justify-center`}
+                                            >
+                                                <Text className="text-white text-xl font-bold">
+                                                    {grade.label ?? String(grade.value)}
                                                 </Text>
-                                            )}
+                                            </View>
+                                            <View>
+                                                <Text className={`${textClass} text-lg font-semibold`}>
+                                                    {grade.category || "Ocena"}
+                                                </Text>
+                                                {grade.weight && grade.weight > 1 && (
+                                                    <Text
+                                                        className={`${
+                                                            theme === "dark"
+                                                                ? "text-gray-400"
+                                                                : "text-gray-600"
+                                                        } text-sm`}
+                                                    >
+                                                        Waga: {grade.weight}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        </View>
+                                        <Text
+                                            className={`${
+                                                theme === "dark" ? "text-gray-400" : "text-gray-600"
+                                            }`}
+                                        >
+                                            {new Date(grade.date).toLocaleDateString("pl-PL", {
+                                                day: "2-digit",
+                                                month: "2-digit",
+                                                year: "numeric",
+                                            })}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+
+                    {/* Grade detail modal */}
+                    <Modal visible={!!selectedGrade} transparent animationType="fade" onRequestClose={() => setSelectedGrade(null)}>
+                        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 }}>
+                            <View style={{ backgroundColor: bg, borderRadius: 14, padding: 16, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10 }}>
+                                {/* Header: big badge + title */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                    <View style={{ width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: selectedGrade ? badgeColorFor(selectedGrade.value) : '#EF4444' }}>
+                                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800' }}>{selectedGrade ? (selectedGrade.label ?? String(selectedGrade.value)) : ''}</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 16, fontWeight: '700', color: theme === 'dark' ? '#fff' : '#111' }}>Szczegóły oceny</Text>
+                                        {selectedGrade && (
+                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280', marginTop: 2, fontSize: 13 }}>{new Date(selectedGrade.date).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+                                        )}
+                                    </View>
+                                </View>
+
+                                <View style={{ height: 1, backgroundColor: theme === 'dark' ? '#111827' : '#E5E7EB', marginBottom: 12 }} />
+
+                                {selectedGrade && (
+                                    <View>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Ocena</Text>
+                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111', fontWeight: '700' }}>{selectedGrade.label ?? String(selectedGrade.value)}</Text>
+                                        </View>
+
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Waga</Text>
+                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{selectedGrade.weight ?? 1}</Text>
+                                        </View>
+
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Kategoria</Text>
+                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{selectedGrade.category ?? '—'}</Text>
+                                        </View>
+
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Data</Text>
+                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{new Date(selectedGrade.date).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
                                         </View>
                                     </View>
-                                    <Text
-                                        className={`${
-                                            theme === "dark" ? "text-gray-400" : "text-gray-600"
-                                        }`}
-                                    >
-                                        {new Date(grade.date).toLocaleDateString("pl-PL", {
-                                            day: "2-digit",
-                                            month: "2-digit",
-                                            year: "numeric",
-                                        })}
-                                    </Text>
+                                )}
+
+                                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14, gap: 8 }}>
+                                    <TouchableOpacity onPress={() => setSelectedGrade(null)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: theme === 'dark' ? '#111827' : '#F3F4F6' }}>
+                                        <Text style={{ color: theme === 'dark' ? '#E5E7EB' : '#111' }}>Zamknij</Text>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
-                        ))}
+                        </View>
+                    </Modal>
                 </View>
             </ScrollView>
         </View>

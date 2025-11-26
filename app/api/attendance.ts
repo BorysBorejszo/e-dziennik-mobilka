@@ -13,7 +13,7 @@ const BASE = 'http://dziennik.polandcentral.cloudapp.azure.com';
 // Default ADMIN-KEY provided earlier; if you'd rather keep it out of the repo
 // we can move it to settings/AsyncStorage. For now we use it so the app can
 // call the API immediately.
-const DEFAULT_ADMIN_KEY = 'OcYEWYixIWioQsk2Idl1Zgw8jpxgOYYe';
+const DEFAULT_ADMIN_KEY = '7KU2mc6ZxflGYE5QqjmZ7wcN0OI3rX1p';
 
 const extractList = (json: any) => {
   if (!json) return null;

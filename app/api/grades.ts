@@ -20,6 +20,83 @@ export type GradesResponse = {
 const BASE = 'http://dziennik.polandcentral.cloudapp.azure.com';
 const DEFAULT_ADMIN_KEY = '7KU2mc6ZxflGYE5QqjmZ7wcN0OI3rX1p';
 
+// Try to resolve numeric subject IDs to human-readable names by probing likely subject endpoints.
+const resolveSubjectNames = async (ids: number[]): Promise<Record<number, string | null>> => {
+  const out: Record<number, string | null> = {};
+  for (const id of ids) out[id] = null;
+
+  const patterns: Array<(id: number) => string> = [
+    (i) => `${BASE}/api/przedmioty/${i}/`,
+    (i) => `${BASE}/api/przedmiot/${i}/`,
+    (i) => `${BASE}/api/przedmioty/?id=${i}`,
+    (i) => `${BASE}/api/przedmioty/?pk=${i}`,
+    (i) => `${BASE}/api/przedmioty/?przedmiot_id=${i}`,
+    (i) => `${BASE}/api/przedmioty/`,
+    (i) => `${BASE}/api/przedmiot/`,
+  ];
+
+  const extractName = (obj: any) => obj?.nazwa ?? obj?.name ?? obj?.title ?? obj?.label ?? null;
+
+  for (const id of ids) {
+    // if already resolved (race) skip
+    if (out[id]) continue;
+    for (const makeUrl of patterns) {
+      const url = makeUrl(id);
+      try {
+        const res = await fetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+        if (!res || !res.ok) continue;
+        let json: any = null;
+        try { json = await res.json(); } catch (e) { continue; }
+
+        // If response is an array or contains results/data/items, search for matching id
+        const list = extractList(json) ?? (Array.isArray(json) ? json : null);
+        if (Array.isArray(list)) {
+          const found = list.find((it: any) => Number(it.id ?? it.pk ?? it.pk_id ?? it.przedmiot_id ?? it.id_przedmiotu ?? -1) === id);
+          if (found) {
+            const name = extractName(found);
+            if (name) {
+              out[id] = name;
+              break;
+            }
+          }
+        }
+
+        // If single object returned, try to use it directly
+        if (!Array.isArray(json)) {
+          const maybe = json;
+          // sometimes the API returns { id, nazwa }
+          if (Number(maybe.id ?? maybe.pk ?? maybe.przedmiot_id ?? -1) === id) {
+            const name = extractName(maybe);
+            if (name) {
+              out[id] = name;
+              break;
+            }
+          }
+          // or it might return { results: { ... } }
+          const maybeList = extractList(json);
+          if (Array.isArray(maybeList)) {
+            const f = maybeList.find((it: any) => Number(it.id ?? it.pk ?? it.przedmiot_id ?? -1) === id);
+            if (f) {
+              const name = extractName(f);
+              if (name) {
+                out[id] = name;
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore and try next pattern
+        // eslint-disable-next-line no-console
+        // console.debug('[grades] subject resolve error', url, e);
+        continue;
+      }
+    }
+  }
+
+  return out;
+};
+
 const extractList = (json: any) => {
   if (!json) return null;
   if (Array.isArray(json)) return json;
@@ -76,7 +153,18 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
   const uniqueItems: any[] = [];
   for (const it of allItems) {
     const uid = it.id ?? it.pk ?? it.pk_id ?? null;
-    const fallbackKey = `${it.przedmiot ?? it.przedmiot_nazwa ?? ''}-${it.wartosc ?? it.value ?? ''}-${it.data ?? it.date ?? ''}-${it.kategoria ?? ''}`;
+    // build a stable subject string for the fallback key so we don't lose textual names
+    const subjForKey = (() => {
+      if (typeof it.przedmiot === 'string') return it.przedmiot;
+      if (it.przedmiot && typeof it.przedmiot === 'object') return it.przedmiot.nazwa ?? it.przedmiot.name ?? it.przedmiot.title ?? (it.przedmiot.id ? String(it.przedmiot.id) : '');
+      if (it.przedmiot_nazwa) return it.przedmiot_nazwa;
+      if (it.przedmiot_name) return it.przedmiot_name;
+      if (typeof it.przedmiot === 'number') return String(it.przedmiot);
+      if (typeof it.subject === 'string') return it.subject;
+      return '';
+    })();
+
+    const fallbackKey = `${subjForKey ?? ''}-${it.wartosc ?? it.value ?? ''}-${it.data ?? it.date ?? ''}-${it.kategoria ?? ''}`;
     const key = uid ? `id:${uid}` : `hk:${fallbackKey}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -92,6 +180,8 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
       if (it.przedmiot_nazwa) return it.przedmiot_nazwa;
       if (it.przedmiot_name) return it.przedmiot_name;
       if (typeof it.przedmiot === 'number') return String(it.przedmiot);
+      if (typeof it.przedmiot_id === 'number' || typeof it.przedmiot_id === 'string') return String(it.przedmiot_id);
+      if (typeof it.przedmiotId === 'number' || typeof it.przedmiotId === 'string') return String(it.przedmiotId);
       return it.subject ?? '—';
     })();
 
@@ -104,6 +194,37 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
 
   // try to detect behavior (Zachowanie)
   const behavior = subjects.find((s) => /zachow/i.test(s.subject));
+
+  // If subjects are numeric IDs (e.g. '1', '2'), try to resolve them to names by querying subject endpoints.
+  const numericKeys = Object.keys(subjectsMap).filter((k) => /^\d+$/.test(k)).map((k) => Number(k));
+  if (numericKeys.length > 0) {
+    try {
+      const resolved = await resolveSubjectNames(Array.from(new Set(numericKeys)));
+      const remapped: Record<string, GradeItem[]> = {};
+      for (const key of Object.keys(subjectsMap)) {
+        if (/^\d+$/.test(key)) {
+          const id = Number(key);
+          const name = resolved[id];
+          const newKey = name ?? `Przedmiot #${id}`;
+          if (!remapped[newKey]) remapped[newKey] = [];
+          remapped[newKey].push(...subjectsMap[key]);
+        } else {
+          if (!remapped[key]) remapped[key] = [];
+          remapped[key].push(...subjectsMap[key]);
+        }
+      }
+      const finalSubjects: SubjectGrades[] = Object.keys(remapped).map((k) => ({ subject: k, grades: remapped[k] }));
+      const finalBehavior = finalSubjects.find((s) => /zachow/i.test(s.subject));
+      return {
+        subjects: finalSubjects,
+        behavior: finalBehavior ? { subject: finalBehavior.subject, grades: finalBehavior.grades } : undefined,
+      };
+    } catch (e) {
+      // if resolution fails, fall back to original subjects
+      // eslint-disable-next-line no-console
+      console.warn('[grades] subject name resolution failed', e);
+    }
+  }
 
   return {
     subjects,
@@ -154,19 +275,19 @@ export const createGrade = async (
     const teacher = (payload as any).nauczyciel_wpisujacy_id ?? null;
     if (type === 'standard') {
       if (variant === 'id') return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-      if (variant === 'both') return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, przedmiot: payload.subjectId ?? payload.subject ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+  if (variant === 'both') return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
       if (variant === 'aliases') return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, uczen: payload.userId, user_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, wartosc_alias: payload.value, nauczyciel_wpisujacy_id: teacher };
       return { wartosc: payload.value, data: baseDate, uczen_id: payload.userId, przedmiot: payload.subject ?? (payload.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
     }
     if (type === 'periodic') {
       if (variant === 'id') return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-      if (variant === 'both') return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot: payload.subjectId ?? payload.subject ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+  if (variant === 'both') return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
       if (variant === 'aliases') return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
       return { wartosc: payload.value, okres: payload.okres ?? 'I', uczen_id: payload.userId, przedmiot: payload.subject ?? (payload.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
     }
     // final
     if (variant === 'id') return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
-    if (variant === 'both') return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot: payload.subjectId ?? payload.subject ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
+  if (variant === 'both') return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
     if (variant === 'aliases') return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot: payload.subject ?? payload.subjectId ?? null, przedmiot_id: payload.subjectId ?? null, nauczyciel_wpisujacy_id: teacher };
     return { wartosc: payload.value, rok_szkolny: payload.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: payload.userId, przedmiot: payload.subject ?? (payload.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
   };

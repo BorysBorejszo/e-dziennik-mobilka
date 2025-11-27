@@ -10,6 +10,9 @@ import { useTheme } from "../theme/ThemeContext";
 
 export default function App() {
   const { user } = useUser();
+  const rawName = user?.name?.toString() ?? '';
+  const firstToken = rawName.split(/[_\s]+/)[0] ?? '';
+  const firstName = firstToken ? firstToken.charAt(0).toUpperCase() + firstToken.slice(1).toLowerCase(): 'User';
   const [todayLessons, setTodayLessons] = useState<TodayLesson[]>([]);
   const [recentUpdates, setRecentUpdates] = useState<UpdateItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +83,7 @@ export default function App() {
       style={{ backgroundColor: bg }}
     >
   {/* Header (greeting + date) - direct child so it becomes sticky */}
-  <Header title={`Witaj, ${user?.name ?? 'User'}!`} subtitle={formattedDate} />
+  <Header title={`Witaj, ${firstName ?? 'User'}!`} subtitle={formattedDate} />
 
   <View className="flex-1">
         {/* Two small cards aligned left and right using flex-row */}

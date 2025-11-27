@@ -37,6 +37,23 @@ export default function Grades() {
     const [creating, setCreating] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
+    // Dodaj tę funkcję na początku komponentu Grades (przed return)
+const formatGradeLabel = (value: number): string => {
+    const rounded = Math.round(value * 100) / 100;
+    const intValue = Math.floor(rounded);
+    const decimal = Math.round((rounded - intValue) * 100) / 100;
+    if (decimal < 0.01) {
+        return String(intValue);
+    }
+    if (Math.abs(decimal - 0.25) < 0.01) {
+        return `${intValue}+`;
+    }
+    if (Math.abs(decimal - 0.75) < 0.01) {
+        return `${intValue + 1}-`;
+    }
+    return String(value);
+};
+
     const load = async () => {
         if (!user) return;
         setLoading(true);
@@ -334,7 +351,7 @@ export default function Grades() {
                                     <View className="flex-row flex-wrap">
                                         {s.grades.map((g, i) => (
                                             <View key={i} className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2`}>
-                                                <Text className={`text-white text-sm font-medium`}>{g.label ?? String(g.value)}</Text>
+                                                <Text className={`text-white text-sm font-medium`}>{formatGradeLabel(Number(g.value))}</Text>
                                             </View>
                                         ))}
                                     </View>

@@ -153,16 +153,53 @@ const extractList = (json: any) => {
 
 // List subjects (przedmioty) - used by UI when creating grades so user can pick from available subjects
 export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string }>> => {
-  const url = `${BASE}/api/przedmioty/`;
+  const startUrl = `${BASE}/api/przedmioty/`;
   try {
-    const res = await fetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
-    if (!res || !res.ok) {
-      return [];
+    const accumulated: any[] = [];
+    let nextUrl: string | null = startUrl;
+    const seenUrls = new Set<string>();
+
+    // follow paginated responses (common patterns: { results, next } or top-level array)
+    while (nextUrl) {
+      // avoid infinite loops if server returns same next repeatedly
+      if (seenUrls.has(nextUrl)) break;
+      seenUrls.add(nextUrl);
+
+  const res: Response = await fetch(nextUrl, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  if (!res || !res.ok) break;
+  const json: any = await res.json().catch(() => null);
+
+      const list = extractList(json) ?? (Array.isArray(json) ? json : null) ?? [];
+      if (Array.isArray(list) && list.length) accumulated.push(...list);
+
+      // detect next link in common shapes
+      let candidateNext: string | null = null;
+      if (json && typeof json === 'object') {
+        if (json.next && typeof json.next === 'string') candidateNext = json.next;
+        else if (json.meta && json.meta.next) candidateNext = json.meta.next;
+        else if (json.links && json.links.next) candidateNext = json.links.next;
+        else if (json.paging && json.paging.next) candidateNext = json.paging.next;
+      }
+
+      // If there was no explicit 'results' wrapper and the first response was an array, stop after one page
+      if (!candidateNext && Array.isArray(json)) candidateNext = null;
+
+      nextUrl = candidateNext;
     }
-    const json = await res.json().catch(() => null);
-    const list = extractList(json) ?? (Array.isArray(json) ? json : null) ?? [];
-    // normalize items with id and nazwa/name/title
-    return (list as any[]).map((it: any) => ({ id: Number(it.id ?? it.pk ?? it.przedmiot_id ?? it.pk_id ?? -1), nazwa: it.nazwa ?? it.name ?? it.title ?? String(it.id ?? it.pk ?? '') })).filter((s) => s.id && s.nazwa);
+
+    // fallback to empty
+    const finalList = accumulated;
+    // normalize items with id and nazwa/name/title and dedupe by id
+    const map = new Map<number, string>();
+    for (const it of finalList) {
+      const id = Number(it.id ?? it.pk ?? it.przedmiot_id ?? it.pk_id ?? -1);
+      const nazwa = it.nazwa ?? it.name ?? it.title ?? String(it.id ?? it.pk ?? '');
+      if (id && nazwa) {
+        if (!map.has(id)) map.set(id, nazwa);
+      }
+    }
+
+    return Array.from(map.entries()).map(([id, nazwa]) => ({ id, nazwa }));
   } catch (e) {
     return [];
   }

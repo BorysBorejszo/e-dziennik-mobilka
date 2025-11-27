@@ -25,7 +25,8 @@ export default function SubjectDetails() {
             if (!user || !subject) return;
             setLoading(true);
             try {
-                const res = await getUserGrades(user.id);
+                const serverId = (user as any).serverId ?? user.id;
+                const res = await getUserGrades(serverId);
                 const found = res.subjects.find((s) => s.subject === subject);
                 if (found) {
                     setSubjectData(found);
@@ -39,9 +40,19 @@ export default function SubjectDetails() {
             }
         };
         load();
-    }, [user?.id, subject]);
+    }, [user?.serverId, user?.id, subject]);
 
-    const average = subjectData ? calculateWeightedAverage(subjectData.grades) : null;
+    // For behavior subject we display total points (baseline + sum of entries) instead of average
+    const average = (() => {
+        if (!subjectData) return null;
+        const isBehavior = /zachow/i.test(subjectData.subject);
+        if (isBehavior) {
+            const baseline = 150; // same baseline used elsewhere
+            const sum = subjectData.grades.reduce((acc, g) => acc + (Number(g.value) || 0), 0);
+            return baseline + sum;
+        }
+        return calculateWeightedAverage(subjectData.grades);
+    })();
 
     const chipBg = (v: number) => {
         switch (true) {
@@ -67,6 +78,15 @@ export default function SubjectDetails() {
         if (v >= 3) return '#F59E0B';
         if (v >= 2) return '#F97316';
         return '#EF4444';
+    };
+
+    // detect behavior subject (zachowanie / zachowanie (punkty) etc.) so we can display raw points
+    const isBehaviorSubject = !!subjectData && /zachow/i.test(subjectData.subject);
+
+    const displayValue = (g?: GradeItem | null) => {
+        if (!g) return '';
+        if (isBehaviorSubject) return String(Math.round(Number(g.value) || 0));
+        return g.label ?? String(g.value);
     };
 
     return (
@@ -157,7 +177,7 @@ export default function SubjectDetails() {
                                                 )} rounded-lg w-12 h-12 items-center justify-center`}
                                             >
                                                 <Text className="text-white text-xl font-bold">
-                                                    {grade.label ?? String(grade.value)}
+                                                    {displayValue(grade)}
                                                 </Text>
                                             </View>
                                             <View>
@@ -200,7 +220,7 @@ export default function SubjectDetails() {
                                 {/* Header: big badge + title */}
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                                     <View style={{ width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: selectedGrade ? badgeColorFor(selectedGrade.value) : '#EF4444' }}>
-                                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800' }}>{selectedGrade ? (selectedGrade.label ?? String(selectedGrade.value)) : ''}</Text>
+                                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800' }}>{selectedGrade ? displayValue(selectedGrade) : ''}</Text>
                                     </View>
                                     <View style={{ flex: 1 }}>
                                         <Text style={{ fontSize: 16, fontWeight: '700', color: theme === 'dark' ? '#fff' : '#111' }}>Szczegóły oceny</Text>
@@ -216,7 +236,7 @@ export default function SubjectDetails() {
                                     <View>
                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                                             <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Ocena</Text>
-                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111', fontWeight: '700' }}>{selectedGrade.label ?? String(selectedGrade.value)}</Text>
+                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111', fontWeight: '700' }}>{displayValue(selectedGrade)}</Text>
                                         </View>
 
                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>

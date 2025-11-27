@@ -226,6 +226,11 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
     `${BASE}/api/oceny-koncowe/?uczen_id=${userId}`,
   ];
 
+  // Debug: log which userId we're querying and the endpoints we'll probe
+  // (temporary verbose logging to help troubleshoot missing grades)
+  // eslint-disable-next-line no-console
+  console.debug('[grades] getUserGrades for userId=', userId, 'endpoints=', endpoints);
+
   const allItems: any[] = [];
 
   for (const url of endpoints) {
@@ -235,7 +240,7 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
       try { json = await res.json(); } catch (e) { /* ignore parse errors */ }
       // debug
       // eslint-disable-next-line no-console
-      console.debug('[grades] fetched', url, 'status=', res?.status, 'json=', json);
+      console.debug('[grades] fetched', url, 'status=', res?.status, 'jsonSample=', Array.isArray(json) ? json.slice(0,3) : (json && typeof json === 'object' ? Object.keys(json).slice(0,5) : json));
       if (!res || !res.ok) continue;
       const list = extractList(json) ?? (json && Array.isArray(json.oceny) ? json.oceny : null) ?? [];
       if (Array.isArray(list)) allItems.push(...list);
@@ -246,6 +251,10 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
       continue;
     }
   }
+
+  // Debug: log number of fetched items and a tiny sample
+  // eslint-disable-next-line no-console
+  console.debug('[grades] fetched total items count=', allItems.length, 'sample=', allItems.slice(0,5));
 
   // Keep only items that belong to the requested user (some APIs return global lists when params are ignored).
   const belongsToUser = (it: any, uid: number) => {
@@ -289,9 +298,10 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
     uniqueItems.push(it);
   }
 
-  // Group items by subject, but only include subjects that exist on the server.
-  // Fetch canonical subjects list from the server so we can strictly include only those.
+  // Group items by subject. Prefer canonical subjects from server, but fall back to textual
+  // names when the server-provided subjects list is empty or doesn't contain a match.
   const subjectsListFromServer = await listSubjects().catch(() => [] as Array<{ id: number; nazwa: string }>);
+  const hasServerSubjects = Array.isArray(subjectsListFromServer) && subjectsListFromServer.length > 0;
   const allowedIds = new Set<number>(subjectsListFromServer.map((s) => Number(s.id)));
   const idToName = new Map<number, string>(subjectsListFromServer.map((s) => [Number(s.id), s.nazwa]));
   const normalize = (s: string | undefined | null) => (s ?? '').toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -326,11 +336,33 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
       }
     }
 
-    // If we couldn't match this grade to a known subject, skip it entirely
+    // If we couldn't match this grade to a known canonical subject, fall back to textual
+    // subject name (when available) or use a generic placeholder. This ensures grades are
+    // not silently dropped when the server's subjects endpoint is unavailable or empty.
     if (!keyName) {
-      // eslint-disable-next-line no-console
-      // console.debug('[grades] skipping grade for unknown subject', it);
-      continue;
+      // prefer human-readable name extracted from the record
+      const rawNameFallback = (() => {
+        if (typeof it.przedmiot === 'string' && it.przedmiot.trim()) return it.przedmiot;
+        if (it.przedmiot_nazwa) return it.przedmiot_nazwa;
+        if (it.przedmiot_name) return it.przedmiot_name;
+        if (it.subject) return it.subject;
+        if (!Number.isNaN(candidateId) && candidateId) return `Przedmiot #${candidateId}`;
+        return null;
+      })();
+
+      if (rawNameFallback) {
+        keyName = String(rawNameFallback);
+      } else if (!hasServerSubjects) {
+        // if server subjects are missing entirely, still include the grade under a generic key
+        keyName = 'Inne';
+      }
+
+      if (!keyName) {
+        // give up only when absolutely no sensible key found
+        // eslint-disable-next-line no-console
+        // console.debug('[grades] skipping grade for unknown subject (no fallback)', it);
+        continue;
+      }
     }
 
     const g = mapServerToGrade(it);
@@ -340,12 +372,37 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
 
   const subjects: SubjectGrades[] = Object.keys(subjectsMap).map((k) => ({ subject: k, grades: subjectsMap[k] }));
 
-  // try to detect behavior (Zachowanie)
-  const behavior = subjects.find((s) => /zachow/i.test(s.subject));
+  // try to detect behavior (Zachowanie) among subjects
+  const behaviorFromSubjects = subjects.find((s) => /zachow/i.test(s.subject));
+
+  // Additionally fetch explicit "zachowanie-punkty" entries and expose them as a separate
+  // behavior category if present. This creates a clear, dedicated category for behavior points.
+  let behaviorFromPoints: SubjectGrades | undefined = undefined;
+  try {
+    const res = await fetch(`${BASE}/api/zachowanie-punkty/?user_id=${userId}`, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+    if (res && res.ok) {
+      const json = await res.json().catch(() => null);
+      const list = extractList(json) ?? (Array.isArray(json) ? json : (json?.results ?? null)) ?? [];
+      if (Array.isArray(list) && list.length) {
+        const mapped = list.map((it: any) => {
+          return {
+            value: Number(it.punkty ?? it.points ?? 0) || 0,
+            date: it.data ?? it.date ?? it.created_at ?? '',
+            label: it.opis ?? it.description ?? undefined,
+          } as GradeItem;
+        });
+        behaviorFromPoints = { subject: 'Zachowanie (punkty)', grades: mapped };
+      }
+    }
+  } catch (e) {
+    // ignore fetch errors for behavior points
+  }
+
+  const finalBehavior = behaviorFromPoints ?? (behaviorFromSubjects ? { subject: behaviorFromSubjects.subject, grades: behaviorFromSubjects.grades } : undefined);
 
   return {
     subjects,
-    behavior: behavior ? { subject: behavior.subject, grades: behavior.grades } : undefined,
+    behavior: finalBehavior,
   };
 };
 

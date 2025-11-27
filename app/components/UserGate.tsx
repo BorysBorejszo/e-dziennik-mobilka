@@ -48,8 +48,54 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
       } else {
         await auth.login(username, password);
       }
-      // after successful auth, pick the first mock user as the app user (profile fetch not implemented)
-      setUser(users[0]);
+      // after successful auth, try to fetch server-side profile to obtain server student id
+      // fall back to the first mock user if profile fetch fails
+      let serverId: number | undefined = undefined;
+      try {
+        const base = 'http://dziennik.polandcentral.cloudapp.azure.com';
+        const candidates = [
+          '/api/auth/user/',
+          '/api/auth/me/',
+          '/api/users/me/',
+          '/api/user/',
+          '/api/profile/',
+          '/api/uzytkownicy/me/',
+          '/api/uczniowie/me/',
+        ];
+        for (const ep of candidates) {
+          try {
+            const res = await auth.authenticatedFetch(`${base}${ep}`);
+            if (!res || !res.ok) continue;
+            const json = await res.json().catch(() => null);
+            if (!json) continue;
+            // try common fields
+            const found = Number(json.id ?? json.pk ?? json.user_id ?? json.uczen_id ?? json.student_id ?? null);
+            if (!Number.isNaN(found) && found) {
+              serverId = found;
+              break;
+            }
+            // sometimes profile is nested
+            if (json.user && typeof json.user === 'object') {
+              const f = Number(json.user.id ?? json.user.pk ?? null);
+              if (!Number.isNaN(f) && f) { serverId = f; break; }
+            }
+            if (json.uczen && typeof json.uczen === 'object') {
+              const f = Number(json.uczen.id ?? json.uczen.pk ?? null);
+              if (!Number.isNaN(f) && f) { serverId = f; break; }
+            }
+          } catch (e) {
+            // try next endpoint
+            continue;
+          }
+        }
+      } catch (e) {
+        // ignore profile fetch errors
+      }
+
+  const chosen = { ...(users[0] || {}), serverId } as any;
+  // eslint-disable-next-line no-console
+  console.debug('[UserGate] chosen mock user with serverId=', serverId);
+  setUser(chosen);
     } catch (e: any) {
       // If backend returned 401 Unauthorized, show a clearer message
       if (e && typeof e.status === 'number' && e.status === 401) {

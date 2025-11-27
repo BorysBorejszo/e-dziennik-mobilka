@@ -4,6 +4,8 @@ import auth from '../api/auth';
 
 export interface UserData {
   id: number;
+  // server-side student id (when different from local/mock id). Use this for API calls.
+  serverId?: number;
   name: string;
   attendance: {
     percentage: string;
@@ -20,6 +22,7 @@ export interface UserData {
 const MOCK_USERS: UserData[] = [
   {
     id: 1,
+    serverId: 1747,
     name: "Jan Kowalski",
     attendance: {
       percentage: "89.4%",
@@ -34,6 +37,7 @@ const MOCK_USERS: UserData[] = [
   },
   {
     id: 2,
+    serverId: 2,
     name: "Anna Nowak",
     attendance: {
       percentage: "95.0%",

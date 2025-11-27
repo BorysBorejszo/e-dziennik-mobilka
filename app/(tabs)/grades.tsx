@@ -42,7 +42,8 @@ export default function Grades() {
         setLoading(true);
         setError(null);
         try {
-            const res = await getUserGrades(user.id);
+            const serverId = (user as any).serverId ?? user.id;
+            const res = await getUserGrades(serverId);
             setSubjects(res.subjects);
             setBehaviorGrades(res.behavior || null);
         } catch (e) {
@@ -66,8 +67,9 @@ export default function Grades() {
 
     useEffect(() => {
         load();
+        // Re-run when user's serverId or id changes
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id]);
+    }, [user?.serverId, user?.id]);
 
     useEffect(() => {
         // Preload subjects list when add form is opened
@@ -81,9 +83,26 @@ export default function Grades() {
         return calculateWeightedAverage(all);
     }, [subjects]);
 
-    const behaviorAverage = useMemo(() => {
-        if (!behaviorGrades?.grades?.length) return null;
-        return calculateWeightedAverage(behaviorGrades.grades);
+    // Compute behavior points total and convert to grade label per rules
+    const { behaviorPointsTotal, behaviorGradeLabel } = useMemo(() => {
+        const baseline = 150; // starting points at beginning of semester
+        if (!behaviorGrades || !Array.isArray(behaviorGrades.grades) || behaviorGrades.grades.length === 0) {
+            // default baseline maps to "dobre" -> short code 'db'
+            return { behaviorPointsTotal: baseline, behaviorGradeLabel: 'db' };
+        }
+        const sum = behaviorGrades.grades.reduce((acc, g) => acc + (Number(g.value) || 0), 0);
+        const total = baseline + sum;
+        // Map to short codes per request:
+        // >=351 -> cel, 251-350 -> bdb, 150-250 -> db, 75-149 -> pop, 26-74 -> nod, <=25 -> ng
+        const label = (() => {
+            if (total >= 351) return 'cel';
+            if (total >= 251) return 'bdb';
+            if (total >= 150) return 'db';
+            if (total >= 75) return 'pop';
+            if (total >= 26) return 'nod';
+            return 'ng';
+        })();
+        return { behaviorPointsTotal: total, behaviorGradeLabel: label };
     }, [behaviorGrades]);
 
     const chipBg = (v: number) => {
@@ -150,7 +169,7 @@ export default function Grades() {
                                 Zach:
                             </Text>
                             <Text className={`${textClass} text-lg font-bold`}>
-                                {behaviorAverage ?? '—'}
+                                {behaviorGradeLabel ?? '—'}
                             </Text>
                         </View>
                     </View>
@@ -223,7 +242,8 @@ export default function Grades() {
                                     if (!v || v < 1 || v > 6) { setFormError('Podaj poprawną wartość (1-6)'); return; }
                                     setCreating(true);
                                     try {
-                                        await createGrade({ userId: user.id, subject: newSubject.trim() || undefined, subjectId: newSubjectId ? Number(newSubjectId) : undefined, value: v, date: newDate || undefined, category: newCategory || undefined, type: gradeType, okres: gradeType === 'periodic' ? newOkres : undefined, rok_szkolny: gradeType === 'final' ? newRokSzkolny : undefined });
+                                        const serverId = (user as any).serverId ?? user.id;
+                                        await createGrade({ userId: serverId, subject: newSubject.trim() || undefined, subjectId: newSubjectId ? Number(newSubjectId) : undefined, value: v, date: newDate || undefined, category: newCategory || undefined, type: gradeType, okres: gradeType === 'periodic' ? newOkres : undefined, rok_szkolny: gradeType === 'final' ? newRokSzkolny : undefined });
                                         // reset and reload
                                         setNewSubject(''); setNewValue(''); setNewCategory(''); setNewDate(''); setShowAddForm(false);
                                         await load();
@@ -257,7 +277,7 @@ export default function Grades() {
 
                         <View className="flex-1 p-4 items-center justify-center">
                             <Text className={`${theme === "dark" ? "text-gray-500" : "text-gray-600"} text-lg`}>Ocena z zachowania</Text>
-                            <Text className={`${textClass} text-5xl font-bold mt-2`}>{behaviorAverage ?? "—"}</Text>
+                            <Text className={`${textClass} text-5xl font-bold `}>{behaviorGradeLabel ?? "—"}</Text>
                         </View>
                     </View>
                 </Card>
@@ -272,12 +292,13 @@ export default function Grades() {
                             <Card className="mt-3 w-full p-4">
                                 <View className="flex-row items-center justify-between mb-2">
                                     <Text className={`${textClass} text-lg font-semibold`}>{behaviorGrades?.subject}</Text>
-                                    <Text className={`${textClass} text-base`}>Śr: {behaviorAverage ?? "—"}</Text>
+                                    <Text className={`${textClass} text-base`}>Śr: {behaviorGradeLabel ?? "—"}</Text>
                                 </View>
                                 <View className="flex-row flex-wrap">
                                     {behaviorGrades?.grades?.map((g, i) => (
-                                        <View key={i} className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2`}>
-                                            <Text className={`text-white text-sm font-medium`}>{g.label ?? String(g.value)}</Text>
+                                        // match visual style/size of subject grade chips
+                                        <View key={i} className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2 items-center justify-center`}>
+                                            <Text className={`text-white text-sm font-medium`}>{String(Math.round(Number(g.value)))}</Text>
                                         </View>
                                     ))}
                                 </View>

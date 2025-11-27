@@ -48,9 +48,8 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
       } else {
         await auth.login(username, password);
       }
-      // after successful auth, try to fetch server-side profile to obtain server student id
-      // fall back to the first mock user if profile fetch fails
-      let serverId: number | undefined = undefined;
+      // after successful auth, try to fetch the full server-side profile and use it as the app user
+      let profileJson: any = null;
       try {
         const base = 'http://dziennik.polandcentral.cloudapp.azure.com';
         const candidates = [
@@ -68,23 +67,9 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
             if (!res || !res.ok) continue;
             const json = await res.json().catch(() => null);
             if (!json) continue;
-            // try common fields
-            const found = Number(json.id ?? json.pk ?? json.user_id ?? json.uczen_id ?? json.student_id ?? null);
-            if (!Number.isNaN(found) && found) {
-              serverId = found;
-              break;
-            }
-            // sometimes profile is nested
-            if (json.user && typeof json.user === 'object') {
-              const f = Number(json.user.id ?? json.user.pk ?? null);
-              if (!Number.isNaN(f) && f) { serverId = f; break; }
-            }
-            if (json.uczen && typeof json.uczen === 'object') {
-              const f = Number(json.uczen.id ?? json.uczen.pk ?? null);
-              if (!Number.isNaN(f) && f) { serverId = f; break; }
-            }
+            profileJson = json;
+            break;
           } catch (e) {
-            // try next endpoint
             continue;
           }
         }
@@ -92,10 +77,43 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
         // ignore profile fetch errors
       }
 
-  const chosen = { ...(users[0] || {}), serverId } as any;
-  // eslint-disable-next-line no-console
-  console.debug('[UserGate] chosen mock user with serverId=', serverId);
-  setUser(chosen);
+      const normalizeName = (p: any) => {
+        if (!p) return null;
+        const candidate = p.user ?? p.uczen ?? p;
+        const first = candidate.first_name ?? candidate.firstName ?? candidate.given_name ?? null;
+        const last = candidate.last_name ?? candidate.lastName ?? candidate.family_name ?? null;
+        if (first || last) return `${first ?? ''} ${last ?? ''}`.trim();
+        return candidate.name ?? candidate.username ?? null;
+      };
+
+      if (profileJson) {
+        const candidate = profileJson.user ?? profileJson.uczen ?? profileJson;
+        const id = Number(candidate.id ?? candidate.pk ?? profileJson.id ?? null) || undefined;
+        const name = normalizeName(profileJson) ?? 'Użytkownik';
+        const attendance = profileJson.attendance ?? profileJson.presence ?? { percentage: '', present: 0, late: 0, absent: 0 };
+        const grades = profileJson.grades ?? { average: '', behavior: '' };
+
+        const userObj = {
+          id: id ?? -1,
+          serverId: id ?? undefined,
+          name,
+          attendance,
+          grades,
+        } as any;
+        // eslint-disable-next-line no-console
+        console.debug('[UserGate] setting user from server profile', userObj);
+        setUser(userObj);
+      } else {
+        // fallback: create a minimal user record using username
+        const fallbackUser = {
+          id: -1,
+          serverId: undefined,
+          name: username || 'Użytkownik',
+          attendance: { percentage: '', present: 0, late: 0, absent: 0 },
+          grades: { average: '', behavior: '' },
+        } as any;
+        setUser(fallbackUser);
+      }
     } catch (e: any) {
       // If backend returned 401 Unauthorized, show a clearer message
       if (e && typeof e.status === 'number' && e.status === 401) {

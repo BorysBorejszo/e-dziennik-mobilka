@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { useEffect, useState } from "react";
 import { LayoutAnimation, Platform, ScrollView, Text, TouchableOpacity, UIManager, View } from "react-native";
+import { calculateWeightedAverage, getUserGrades } from "../api/grades";
 import { getUserHomeData, TodayLesson, UpdateItem } from "../api/home";
 import Header from "../components/Header";
 import Card from "../components/ui/Card";
@@ -12,6 +13,7 @@ export default function App() {
   const [todayLessons, setTodayLessons] = useState<TodayLesson[]>([]);
   const [recentUpdates, setRecentUpdates] = useState<UpdateItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gradeAverage, setGradeAverage] = useState<string | number | null>(null);
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString("pl-PL", {
@@ -40,6 +42,16 @@ export default function App() {
         const data = await getUserHomeData(user.id);
         setTodayLessons(data.todayLessons);
         setRecentUpdates(data.recentUpdates);
+        // Also try to fetch grades summary so UI shows current average even if user.profile lacked it
+        try {
+          const serverId = (user as any).serverId ?? user.id;
+          const gradesRes = await getUserGrades(serverId as number);
+          const all = gradesRes.subjects.flatMap((s) => s.grades);
+          const avg = calculateWeightedAverage(all);
+          setGradeAverage(avg ?? null);
+        } catch (e) {
+          setGradeAverage(user?.grades?.average ?? null);
+        }
       } catch (error) {
         console.error("Failed to fetch home data:", error);
         setTodayLessons([]);
@@ -87,7 +99,7 @@ export default function App() {
               <Ionicons name="trending-up" size={24} color="yellow" />
             </View>
             <Text className={`${textClass} text-sm font-semibold mb-1`}>Średnia</Text>
-            <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-2xl font-bold`}>{user?.grades.average ?? '4.6'}</Text>
+            <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-2xl font-bold`}>{gradeAverage ?? user?.grades.average ?? '—'}</Text>
           </Card>
         </View>
 

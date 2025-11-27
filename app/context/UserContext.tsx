@@ -19,38 +19,7 @@ export interface UserData {
   };
 }
 
-const MOCK_USERS: UserData[] = [
-  {
-    id: 1,
-    serverId: 1747,
-    name: "Jan Kowalski",
-    attendance: {
-      percentage: "89.4%",
-      present: 42,
-      late: 3,
-      absent: 2,
-    },
-    grades: {
-      average: "4.6",
-      behavior: "4.2",
-    },
-  },
-  {
-    id: 2,
-    serverId: 2,
-    name: "Anna Nowak",
-    attendance: {
-      percentage: "95.0%",
-      present: 50,
-      late: 1,
-      absent: 0,
-    },
-    grades: {
-      average: "5.0",
-      behavior: "5.0",
-    },
-  },
-];
+// Removed local MOCK_USERS — application will use server-side profile when authenticated.
 
 interface UserContextType {
   user: UserData | null;
@@ -70,19 +39,51 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     (async () => {
       try {
-        // if tokens exist, consider user authenticated; map to first mock user
         const access = await auth.getAccessToken();
-        if (access) {
-          setUserState(MOCK_USERS[0]);
+        if (!access) {
           setReady(true);
           return;
         }
 
-        const idStr = await AsyncStorage.getItem('selectedUserId');
-        if (idStr) {
-          const id = Number(idStr);
-          const found = MOCK_USERS.find((u) => u.id === id) || null;
-          setUserState(found);
+        // try to fetch profile from common endpoints
+        const candidates = [
+          '/api/auth/user/',
+          '/api/auth/me/',
+          '/api/users/me/',
+          '/api/user/',
+          '/api/profile/',
+          '/api/uzytkownicy/me/',
+          '/api/uczniowie/me/',
+        ];
+        let profile: any = null;
+        for (const ep of candidates) {
+          try {
+            const res = await auth.authenticatedFetch(ep);
+            if (!res || !res.ok) continue;
+            const json = await res.json().catch(() => null);
+            if (!json) continue;
+            profile = json;
+            break;
+          } catch (e) {
+            continue;
+          }
+        }
+
+        if (profile) {
+          const candidate = profile.user ?? profile.uczen ?? profile;
+          const id = Number(candidate.id ?? candidate.pk ?? profile.id ?? null) || undefined;
+          const first = candidate.first_name ?? candidate.firstName ?? candidate.given_name;
+          const last = candidate.last_name ?? candidate.lastName ?? candidate.family_name;
+          const name = (first || last) ? `${first ?? ''} ${last ?? ''}`.trim() : (candidate.name ?? candidate.username ?? 'Użytkownik');
+
+          const u: UserData = {
+            id: id ?? -1,
+            serverId: id ?? undefined,
+            name,
+            attendance: profile.attendance ?? { percentage: '', present: 0, late: 0, absent: 0 },
+            grades: profile.grades ?? { average: '', behavior: '' },
+          };
+          setUserState(u);
         }
       } catch {
         // ignore
@@ -93,7 +94,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const setUser = (u: UserData) => {
     setUserState(u);
-    AsyncStorage.setItem('selectedUserId', String(u.id)).catch(() => {});
   };
 
   const clearUser = () => {
@@ -104,14 +104,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const switchUser = (userId: number) => {
-    const found = MOCK_USERS.find((u) => u.id === userId);
-    if (found) {
-      setUser(found);
-    }
+    // switching mock users removed
+    return;
   };
 
   return (
-    <UserContext.Provider value={{ user, users: MOCK_USERS, setUser, switchUser, clearUser, ready }}>
+    <UserContext.Provider value={{ user, users: [], setUser, switchUser, clearUser, ready }}>
       {children}
     </UserContext.Provider>
   );

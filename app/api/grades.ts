@@ -226,10 +226,9 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
     `${BASE}/api/oceny-koncowe/?uczen_id=${userId}`,
   ];
 
-  // Debug: log which userId we're querying and the endpoints we'll probe
-  // (temporary verbose logging to help troubleshoot missing grades)
+  // Debug: log which userId we're querying
   // eslint-disable-next-line no-console
-  console.debug('[grades] getUserGrades for userId=', userId, 'endpoints=', endpoints);
+  console.debug('[grades] getUserGrades for userId=', userId);
 
   const allItems: any[] = [];
 
@@ -243,7 +242,9 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
       console.debug('[grades] fetched', url, 'status=', res?.status, 'jsonSample=', Array.isArray(json) ? json.slice(0,3) : (json && typeof json === 'object' ? Object.keys(json).slice(0,5) : json));
       if (!res || !res.ok) continue;
       const list = extractList(json) ?? (json && Array.isArray(json.oceny) ? json.oceny : null) ?? [];
-      if (Array.isArray(list)) allItems.push(...list);
+      if (Array.isArray(list)) {
+        allItems.push(...list);
+      }
     } catch (e) {
       // ignore and continue
       // eslint-disable-next-line no-console
@@ -267,76 +268,13 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
       if (!Number.isNaN(cid)) return cid === uid;
     }
     if (it.user && typeof it.user === 'object') {
-      const cid = Number(it.user.id ?? it.user.pk ?? NaN);
+      const cid = Number(it.user.user_id ?? it.user.id ?? it.user.pk ?? NaN);
       if (!Number.isNaN(cid)) return cid === uid;
     }
     return false;
   };
 
   const filteredByUser = allItems.filter((it) => belongsToUser(it, userId));
-
-  // If nothing matched (for example when userId was unknown/-1 but the server returned a
-  // global list), try to auto-detect the most frequent uczen_id/user_id present in the data
-  // and use that as a fallback. This helps when APIs ignore the uczen_id parameter and return
-  // full lists (we then try to infer which student the app user corresponds to).
-  if ((!filteredByUser || filteredByUser.length === 0) && allItems.length > 0) {
-    const idCounts = new Map<number, number>();
-    const extractId = (it: any) => {
-      const cand = Number(it.uczen_id ?? it.user_id ?? it.uczen ?? it.uczenId ?? it.student_id ?? it.studentId ?? NaN);
-      if (!Number.isNaN(cand) && cand) return cand;
-      if (it.uczen && typeof it.uczen === 'object') {
-        const cid = Number(it.uczen.id ?? it.uczen.pk ?? NaN);
-        if (!Number.isNaN(cid) && cid) return cid;
-      }
-      if (it.user && typeof it.user === 'object') {
-        const cid = Number(it.user.id ?? it.user.pk ?? NaN);
-        if (!Number.isNaN(cid) && cid) return cid;
-      }
-      return null;
-    };
-
-    for (const it of allItems) {
-      const id = extractId(it);
-      if (id) idCounts.set(id, (idCounts.get(id) || 0) + 1);
-    }
-
-    if (idCounts.size > 0) {
-      // pick the id with highest count
-      let bestId: number | null = null;
-      let bestCount = 0;
-      for (const [id, cnt] of idCounts.entries()) {
-        if (cnt > bestCount) {
-          bestCount = cnt;
-          bestId = id;
-        }
-      }
-      if (bestId) {
-        // debug
-        // eslint-disable-next-line no-console
-        console.debug('[grades] auto-detected userId=', bestId, 'from fetched items (fallback)');
-        const uid = bestId;
-        // re-filter
-        const byDetected = allItems.filter((it) => {
-          try {
-            return belongsToUser(it, uid);
-          } catch {
-            return false;
-          }
-        });
-        if (byDetected.length > 0) {
-          // replace filteredByUser for subsequent processing
-          // eslint-disable-next-line prefer-const
-          ({} as any); // noop to satisfy TS when reassigning below
-          // assign filteredByUser variable via shadowing - create new const
-          // (we'll just use byDetected from now on)
-          // Note: we'll continue with byDetected in place of filteredByUser further below
-          // by assigning to a new variable used in the dedupe step. To keep changes minimal,
-          // we'll overwrite filteredByUser via (filteredByUser as any) assignment.
-          (filteredByUser as any) = byDetected;
-        }
-      }
-    }
-  }
 
   // Deduplicate items (some endpoints may return overlapping records).
   const seen = new Set<string>();

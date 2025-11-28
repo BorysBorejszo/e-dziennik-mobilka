@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import auth from '../api/auth';
+import auth, { decodeJWT } from '../api/auth';
 
 export interface UserData {
   id: number;
   // server-side student id (when different from local/mock id). Use this for API calls.
   serverId?: number;
   name: string;
+  role?: string;
+  classId?: number;
   attendance: {
     percentage: string;
     present: number;
@@ -45,6 +47,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
+        // Decode JWT to get user info immediately
+        const payload = decodeJWT(access);
+        let jwtUserId: number | undefined;
+        let jwtRole: string | undefined;
+        let jwtClassId: number | undefined;
+
+        if (payload) {
+            jwtUserId = payload.uczen_id;
+            jwtRole = payload.role;
+            jwtClassId = payload.klasa_id;
+            // eslint-disable-next-line no-console
+            console.log('[UserContext] JWT payload:', payload);
+        }
+
         // try to fetch profile from common endpoints
         const candidates = [
           '/api/auth/user/',
@@ -71,7 +87,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         if (profile) {
           const candidate = profile.user ?? profile.uczen ?? profile;
-          const id = Number(candidate.id ?? candidate.pk ?? profile.id ?? null) || undefined;
+          // Prioritize user_id as requested by the user, and JWT payload
+          const id = jwtUserId ?? (Number(candidate.user_id ?? candidate.id ?? candidate.pk ?? profile.id ?? null) || undefined);
           const first = candidate.first_name ?? candidate.firstName ?? candidate.given_name;
           const last = candidate.last_name ?? candidate.lastName ?? candidate.family_name;
           const name = (first || last) ? `${first ?? ''} ${last ?? ''}`.trim() : (candidate.name ?? candidate.username ?? 'Użytkownik');
@@ -80,10 +97,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             id: id ?? -1,
             serverId: id ?? undefined,
             name,
+            role: jwtRole,
+            classId: jwtClassId,
             attendance: profile.attendance ?? { percentage: '', present: 0, late: 0, absent: 0 },
             grades: profile.grades ?? { average: '', behavior: '' },
           };
           setUserState(u);
+        } else if (jwtUserId) {
+            // Fallback if profile fetch fails but we have JWT info
+             const u: UserData = {
+                id: jwtUserId,
+                serverId: jwtUserId,
+                name: 'Użytkownik',
+                role: jwtRole,
+                classId: jwtClassId,
+                attendance: { percentage: '', present: 0, late: 0, absent: 0 },
+                grades: { average: '', behavior: '' },
+              };
+              setUserState(u);
         }
       } catch {
         // ignore

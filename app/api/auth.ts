@@ -25,6 +25,47 @@ export class ApiError extends Error {
   }
 }
 
+// Simple JWT decode helper
+export const decodeJWT = (token: string): any => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    // Fallback if atob is not available or fails
+    console.warn('JWT decode failed', e);
+    return null;
+  }
+};
+
+// Polyfill atob if needed (for React Native environment)
+if (typeof global.atob === 'undefined') {
+  global.atob = (input: string) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    let str = input.replace(/=+$/, '');
+    let output = '';
+    if (str.length % 4 === 1) {
+      throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
+    }
+    for (
+      let bc = 0, bs = 0, buffer, i = 0;
+      (buffer = str.charAt(i++));
+      ~buffer && ((bs = bc % 4 ? bs * 64 + buffer : buffer), bc++ % 4)
+        ? (output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6))))
+        : 0
+    ) {
+      buffer = chars.indexOf(buffer);
+    }
+    return output;
+  };
+}
+
 // default to the remote dziennik server
 let BASE_URL = 'http://dziennik.polandcentral.cloudapp.azure.com';
 const ACCESS_KEY = '@e-dziennik:access';

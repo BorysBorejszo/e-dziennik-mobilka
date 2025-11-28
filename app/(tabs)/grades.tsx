@@ -11,7 +11,7 @@ import { useTheme } from "../theme/ThemeContext";
 
 export default function Grades() {
     const { theme } = useTheme();
-    const { user } = useUser();
+    const { user, setUser } = useUser();
     const router = useRouter();
     const bg = theme === "dark" ? "#000" : "#fff";
     const textClass = theme === "dark" ? "text-white" : "text-black";

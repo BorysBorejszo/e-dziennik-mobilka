@@ -151,6 +151,37 @@ const extractList = (json: any) => {
   return null;
 };
 
+// Normalize various possible server date fields into an ISO-ish string when possible.
+const normalizeDate = (raw: any): string => {
+  if (raw === null || raw === undefined) return '';
+  // If it's an object with nested date, try common keys
+  if (typeof raw === 'object') {
+    raw = raw.data ?? raw.date ?? raw.created_at ?? raw.timestamp ?? raw.time ?? '';
+  }
+  // Common server field names sometimes appear on the parent object; caller may pass that directly.
+  // Try to coerce to number first (timestamp) or string otherwise.
+  const n = Number(raw);
+  if (!Number.isNaN(n) && raw !== '') {
+    // Heuristic: if timestamp looks like seconds (<= 1e10) multiply by 1000
+    try {
+      const ms = n > 1e12 ? n : n > 1e10 ? n : n * 1000;
+      const d = new Date(ms);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    } catch (e) {
+      // fallthrough
+    }
+  }
+  // Try to parse RFC/ISO-like strings
+  try {
+    const d2 = new Date(String(raw));
+    if (!Number.isNaN(d2.getTime())) return d2.toISOString();
+  } catch (e) {
+    // ignore
+  }
+  // fallback to empty string (UI will show '—' or handle missing date)
+  return String(raw ?? '') || '';
+};
+
 // List subjects (przedmioty) - used by UI when creating grades so user can pick from available subjects
 export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string }>> => {
   const startUrl = `${BASE}/api/przedmioty/`;
@@ -209,7 +240,9 @@ const mapServerToGrade = (it: any): GradeItem => {
   const value = Number(it.wartosc ?? it.value ?? it.ocena ?? it.grade ?? 0) || 0;
   const label = it.etykieta ?? it.label ?? (value ? String(value) : undefined);
   const weight = Number(it.waga ?? it.weight ?? 1) || 1;
-  const date = it.data ?? it.date ?? it.created_at ?? it.timestamp ?? '';
+  // try multiple possible date fields (including 'data_wystawienia' used by some servers)
+  const rawDate = it.data_wystawienia ?? it.data_wystawienia_oceny ?? it.data ?? it.date ?? it.created_at ?? it.timestamp ?? it.time ?? '';
+  const date = normalizeDate(rawDate);
   const category = it.kategoria ?? it.kategoria_nazwa ?? it.typ ?? it.category ?? undefined;
   return { value, label, weight, date, category };
 };
@@ -386,9 +419,10 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
       const list = extractList(json) ?? (Array.isArray(json) ? json : (json?.results ?? null)) ?? [];
       if (Array.isArray(list) && list.length) {
         const mapped = list.map((it: any) => {
+          const rawDate = it.data_wpisu ?? it.data_wpisania ?? it.data_wystawienia ?? it.data ?? it.date ?? it.created_at ?? it.timestamp ?? '';
           return {
             value: Number(it.punkty ?? it.points ?? 0) || 0,
-            date: it.data ?? it.date ?? it.created_at ?? '',
+            date: normalizeDate(rawDate),
             label: it.opis ?? it.description ?? undefined,
           } as GradeItem;
         });

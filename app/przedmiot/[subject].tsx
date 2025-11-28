@@ -184,7 +184,8 @@ export default function SubjectDetails() {
                                                 <Text className={`${textClass} text-lg font-semibold`}>
                                                     {grade.category || "Ocena"}
                                                 </Text>
-                                                {grade.weight && grade.weight > 1 && (
+                                                {/* Hide weight for behavior entries; show only for normal subject grades */}
+                                                {!isBehaviorSubject && grade.weight && grade.weight > 1 && (
                                                     <Text
                                                         className={`${
                                                             theme === "dark"
@@ -234,25 +235,48 @@ export default function SubjectDetails() {
 
                                 {selectedGrade && (
                                     <View>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Ocena</Text>
-                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111', fontWeight: '700' }}>{displayValue(selectedGrade)}</Text>
-                                        </View>
+                                        {isBehaviorSubject ? (
+                                            // Behavior entry: show Ocena, Komentarz, Data
+                                            <>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Ocena</Text>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111', fontWeight: '700' }}>{displayValue(selectedGrade)}</Text>
+                                                </View>
 
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Waga</Text>
-                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{selectedGrade.weight ?? 1}</Text>
-                                        </View>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Komentarz</Text>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{selectedGrade.label ?? selectedGrade.category ?? '—'}</Text>
+                                                </View>
 
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Kategoria</Text>
-                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{selectedGrade.category ?? '—'}</Text>
-                                        </View>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Data wpisu</Text>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{new Date(selectedGrade.date).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+                                                </View>
+                                            </>
+                                        ) : (
+                                            // Regular subject grade: show Ocena, Waga, Kategoria, Data
+                                            <>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Ocena</Text>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111', fontWeight: '700' }}>{displayValue(selectedGrade)}</Text>
+                                                </View>
 
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                            <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Data</Text>
-                                            <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{new Date(selectedGrade.date).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
-                                        </View>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Waga</Text>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{selectedGrade.weight ?? 1}</Text>
+                                                </View>
+
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Kategoria</Text>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{selectedGrade.category ?? '—'}</Text>
+                                                </View>
+
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Data</Text>
+                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{new Date(selectedGrade.date).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+                                                </View>
+                                            </>
+                                        )}
                                     </View>
                                 )}
 

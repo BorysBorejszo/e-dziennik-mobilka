@@ -56,27 +56,54 @@ export default function SubjectDetails() {
 
     const chipBg = (v: number) => {
         switch (true) {
-            case v >= 6:
+            case v >= 5.75:
                 return "bg-emerald-600";
-            case v >= 5:
+            case v >= 4.75:
                 return "bg-green-500";
-            case v >= 4:
+            case v >= 3.75:
                 return "bg-blue-500";
-            case v >= 3:
+            case v >= 2.75:
                 return "bg-amber-500";
-            case v >= 2:
+            case v >= 1.75:
                 return "bg-orange-500";
             default:
                 return "bg-red-500";
         }
     };
+    
+
+    const zacBg = (v: number) => {
+        switch (true) {
+            case v >= 1:
+                return "bg-emerald-600";
+            
+            default:
+                return "bg-red-500";
+        }
+    };
+
+    const formatGradeLabel = (value: number): string => {
+        const rounded = Math.round(value * 100) / 100;
+        const intValue = Math.floor(rounded);
+        const decimal = Math.round((rounded - intValue) * 100) / 100;
+        if (decimal < 0.01) {
+            return String(intValue);
+        }
+        if (Math.abs(decimal - 0.5) < 0.01) {
+            return `${intValue}+`;
+        }
+        if (Math.abs(decimal - 0.75) < 0.01) {
+            return `${intValue + 1}-`;
+        }
+        return String(value);
+    };
 
     const badgeColorFor = (v: number) => {
-        if (v >= 6) return '#16A34A';
-        if (v >= 5) return '#10B981';
-        if (v >= 4) return '#3B82F6';
-        if (v >= 3) return '#F59E0B';
-        if (v >= 2) return '#F97316';
+        if (v >= 5.75) return '#16A34A';
+        if (v >= 4.75) return '#10B981';
+        if (v >= 3.75) return '#3B82F6';
+        if (v >= 2.75) return '#F59E0B';
+        if (v >= 1.75) return '#F97316';
         return '#EF4444';
     };
 
@@ -86,6 +113,12 @@ export default function SubjectDetails() {
     const displayValue = (g?: GradeItem | null) => {
         if (!g) return '';
         if (isBehaviorSubject) return String(Math.round(Number(g.value) || 0));
+        
+        const numericValue = Number(g.value);
+        if (!isNaN(numericValue)) {
+            return formatGradeLabel(numericValue); 
+        }
+
         return g.label ?? String(g.value);
     };
 
@@ -171,10 +204,8 @@ export default function SubjectDetails() {
                                 >
                                     <View className="flex-row items-center justify-between">
                                         <View className="flex-row items-center gap-3">
-                                            <View
-                                                className={`${chipBg(
-                                                    grade.value
-                                                )} rounded-lg w-12 h-12 items-center justify-center`}
+                                             <View
+                                                className={`${(isBehaviorSubject ? zacBg(Number(grade.value)) : chipBg(Number(grade.value)))} rounded-lg w-12 h-12 items-center justify-center`}
                                             >
                                                 <Text className="text-white text-xl font-bold">
                                                     {displayValue(grade)}
@@ -252,6 +283,8 @@ export default function SubjectDetails() {
                                                     <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Data wpisu</Text>
                                                     <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{new Date(selectedGrade.date).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
                                                 </View>
+
+                                                {/* nauczyciel */}
                                             </>
                                         ) : (
                                             // Regular subject grade: show Ocena, Waga, Kategoria, Data
@@ -275,6 +308,8 @@ export default function SubjectDetails() {
                                                     <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Data</Text>
                                                     <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{new Date(selectedGrade.date).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
                                                 </View>
+
+                                                {/* nauczycuel, czy do sredniej  */}
                                             </>
                                         )}
                                     </View>

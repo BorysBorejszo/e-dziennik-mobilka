@@ -45,7 +45,7 @@ const formatGradeLabel = (value: number): string => {
     if (decimal < 0.01) {
         return String(intValue);
     }
-    if (Math.abs(decimal - 0.25) < 0.01) {
+    if (Math.abs(decimal - 0.5) < 0.01) {
         return `${intValue}+`;
     }
     if (Math.abs(decimal - 0.75) < 0.01) {
@@ -124,16 +124,26 @@ const formatGradeLabel = (value: number): string => {
 
     const chipBg = (v: number) => {
         switch (true) {
-            case v >= 6:
+            case v >= 5.75:
                 return "bg-emerald-600";
-            case v >= 5:
+            case v >= 4.75:
                 return "bg-green-500";
-            case v >= 4:
+            case v >= 3.75:
                 return "bg-blue-500";
-            case v >= 3:
+            case v >= 2.75:
                 return "bg-amber-500";
-            case v >= 2:
+            case v >= 1.75:
                 return "bg-orange-500";
+            default:
+                return "bg-red-500";
+        }
+    };
+
+      const zacBg = (v: number) => {
+        switch (true) {
+            case v >= 1:
+                return "bg-emerald-600";
+            
             default:
                 return "bg-red-500";
         }
@@ -314,7 +324,7 @@ const formatGradeLabel = (value: number): string => {
                                 <View className="flex-row flex-wrap">
                                     {behaviorGrades?.grades?.map((g, i) => (
                                         // match visual style/size of subject grade chips
-                                        <View key={i} className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2 items-center justify-center`}>
+                                        <View key={i} className={`${zacBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2 items-center justify-center`}>
                                             <Text className={`text-white text-sm font-medium`}>{String(Math.round(Number(g.value)))}</Text>
                                         </View>
                                     ))}

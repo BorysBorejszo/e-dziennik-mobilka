@@ -304,11 +304,11 @@ export default function attendance() {
                       : selectedEntry.status === "Usprawiedliwiony" ? '#3B82F6'
                       : '#EF4444'
                   }}>
-                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>
-                      {selectedEntry.status === "Obecny" ? '✓'
-                        : selectedEntry.status === "Spóźniony" ? '⏰'
+                    <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800' }}>
+                      {selectedEntry.status === "Obecny" ? 'O'
+                        : selectedEntry.status === "Spóźniony" ? 'S'
                         : selectedEntry.status === "Usprawiedliwiony" ? 'U'
-                        : '✗'}
+                        : 'N'}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>

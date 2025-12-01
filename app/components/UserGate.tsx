@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import auth from '../api/auth';
+import auth, { decodeJWT } from '../api/auth';
+import { calculateWeightedAverage, getUserGrades } from '../api/grades';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../theme/ThemeContext';
 import PasswordInput from './ui/PasswordInput';
@@ -104,15 +105,37 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
         console.debug('[UserGate] setting user from server profile', userObj);
         setUser(userObj);
       } else {
-        // fallback: create a minimal user record using username
+        // fallback: try to decode JWT to at least get an id so we can fetch grades/home
+        let jwtId: number | undefined;
+        try {
+          const access = await auth.getAccessToken();
+          const payload = access ? decodeJWT(access) : null;
+          jwtId = payload?.uczen_id ?? payload?.user_id ?? payload?.id ?? payload?.sub ?? undefined;
+        } catch (e) {
+          // ignore
+        }
+
         const fallbackUser = {
-          id: -1,
-          serverId: undefined,
-          name: username || 'Użytkownik',
+          id: jwtId ?? -1,
+          serverId: jwtId ?? undefined,
+          name: 'Użytkownik',
           attendance: { percentage: '', present: 0, late: 0, absent: 0 },
           grades: { average: '', behavior: '' },
         } as any;
         setUser(fallbackUser);
+
+        // If we managed to get a numeric id from JWT, try to fetch grades immediately so UI updates
+        if (jwtId && typeof jwtId === 'number' && jwtId > 0) {
+          try {
+            const gradesRes = await getUserGrades(jwtId as number);
+            const all = gradesRes.subjects.flatMap((s) => s.grades);
+            const avg = calculateWeightedAverage(all);
+            // update the user we just set with fetched grades
+            setUser({ ...fallbackUser, grades: { average: avg ?? '', behavior: gradesRes.behavior ? '' : (fallbackUser?.grades?.behavior ?? '') } });
+          } catch (e) {
+            // ignore grade fetch errors
+          }
+        }
       }
     } catch (e: any) {
       // If backend returned 401 Unauthorized, show a clearer message

@@ -1,13 +1,13 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { useEffect, useState } from "react";
 import {
-  LayoutAnimation,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  UIManager,
-  View,
+    LayoutAnimation,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    UIManager,
+    View,
 } from "react-native";
 import { calculateWeightedAverage, getUserGrades } from "../api/grades";
 import { getUserHomeData, TodayLesson, UpdateItem } from "../api/home";
@@ -22,7 +22,7 @@ export default function App() {
     const firstToken = rawName.split(/[_\s]+/)[0] ?? "";
     const firstName = firstToken
         ? firstToken.charAt(0).toUpperCase() + firstToken.slice(1).toLowerCase()
-        : "User";
+        : "Użytkownik";
     const [todayLessons, setTodayLessons] = useState<TodayLesson[]>([]);
     const [recentUpdates, setRecentUpdates] = useState<UpdateItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,16 +54,27 @@ export default function App() {
 
     useEffect(() => {
         const fetchHomeData = async () => {
-            if (!user) return;
+            // Determine the best id to use for server calls: prefer serverId if present
+            const idToUse = (user as any)?.serverId ?? user?.id;
+
+            // If there's no user or no valid id, clear UI state and don't call server
+            if (!user || typeof idToUse !== 'number' || idToUse <= 0) {
+                setTodayLessons([]);
+                setRecentUpdates([]);
+                setGradeAverage(null);
+                setLoading(false);
+                return;
+            }
+
             setLoading(true);
             try {
-                const data = await getUserHomeData(user.id);
+                const data = await getUserHomeData(idToUse as number);
                 setTodayLessons(data.todayLessons);
                 setRecentUpdates(data.recentUpdates);
+
                 // Also try to fetch grades summary so UI shows current average even if user.profile lacked it
                 try {
-                    const serverId = (user as any).serverId ?? user.id;
-                    const gradesRes = await getUserGrades(serverId as number);
+                    const gradesRes = await getUserGrades(idToUse as number);
                     const all = gradesRes.subjects.flatMap((s) => s.grades);
                     const avg = calculateWeightedAverage(all);
                     setGradeAverage(avg ?? null);
@@ -80,7 +91,7 @@ export default function App() {
         };
 
         fetchHomeData();
-    }, [user?.id]);
+    }, [user?.id, user?.serverId]);
 
     const [scheduleCollapsed, setScheduleCollapsed] = useState(false);
     const [updatesCollapsed, setUpdatesCollapsed] = useState(false);

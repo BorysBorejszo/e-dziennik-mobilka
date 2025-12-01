@@ -42,13 +42,23 @@ export default function attendance() {
     let absent = 0;
     let excused = 0;
 
-    records.forEach((entry) => {
-      const status = entry.status.toLowerCase();
-      if (status.includes('obecn')) present++;
-      else if (status.includes('spó') || status.includes('spo')) late++;
-      else if (status.includes('uspraw')) excused++;
-      else if (status.includes('nie')) absent++;
+    console.log('[attendance] calculateStats - analyzing', records.length, 'records');
+
+    records.forEach((entry, index) => {
+      const status = entry.status;
+      console.log(`[attendance] Record ${index}: status="${status}"`);
+      
+      // Dokładne dopasowanie statusów
+      if (status === 'Obecny') present++;
+      else if (status === 'Spóźniony') late++;
+      else if (status === 'Usprawiedliwiony') excused++;
+      else if (status === 'Nieobecny') absent++;
+      else {
+        console.warn('[attendance] Unknown status:', status);
+      }
     });
+
+    console.log('[attendance] Stats:', { present, late, absent, excused, total: records.length });
 
     const total = records.length;
     const attendedCount = present + late; // Obecności + Spóźnienia liczą się jako obecność
@@ -71,8 +81,14 @@ export default function attendance() {
     setRefreshing(true);
     try {
       const res = await getUserAttendance(user.id);
-      setEntries(res.recent);
-      calculateStats(res.recent);
+      // Sortuj od najnowszej do najstarszej
+      const sorted = res.recent.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA; // Odwrotna kolejność (najnowsze najpierw)
+      });
+      setEntries(sorted);
+      calculateStats(sorted);
     } finally {
       setRefreshing(false);
     }
@@ -98,8 +114,15 @@ export default function attendance() {
         return { date: entryDate, subject, status } as AttendanceEntry;
       });
       
-      setEntries(mapped);
-      calculateStats(mapped);
+      // Sortuj od najnowszej do najstarszej
+      const sorted = mapped.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA;
+      });
+      
+      setEntries(sorted);
+      calculateStats(sorted);
     } finally {
       setRefreshing(false);
     }

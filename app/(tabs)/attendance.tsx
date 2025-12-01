@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Modal, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-import { AttendanceEntry, AttendanceRecord, getAttendanceByDate, getUserAttendance } from "../api/attendance";
+import { AttendanceEntry, AttendanceRecord, getAttendanceByDate, getAttendanceById, getUserAttendance } from "../api/attendance";
 import Header from "../components/Header";
 import Card from "../components/ui/Card";
 import EmptyState from "../components/ui/EmptyState";
@@ -17,6 +17,11 @@ export default function attendance() {
   const [filterDate, setFilterDate] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [rawRecords, setRawRecords] = useState<AttendanceRecord[]>([]);
+  
+  // Modal ze szczegółami
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<AttendanceEntry | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   
   // Statystyki obliczane z rzeczywistych danych
   const [stats, setStats] = useState({
@@ -111,7 +116,7 @@ export default function attendance() {
         else if (rs.includes('nie') || rs.includes('abs')) status = 'Nieobecny';
         else if (rs.includes('spó') || rs.includes('spo') || rs.includes('late')) status = 'Spóźniony';
 
-        return { date: entryDate, subject, status } as AttendanceEntry;
+        return { id: it.id, date: entryDate, subject, status } as AttendanceEntry;
       });
       
       // Sortuj od najnowszej do najstarszej
@@ -131,6 +136,24 @@ export default function attendance() {
   const clearFilter = () => {
     setFilterDate('');
     fetchData();
+  };
+
+  const handleRecordClick = async (entry: AttendanceEntry) => {
+    if (!entry.id) {
+      console.warn('[attendance] No ID for entry', entry);
+      return;
+    }
+
+    try {
+      const fullRecord = await getAttendanceById(entry.id);
+      if (fullRecord) {
+        setSelectedRecord(fullRecord);
+        setSelectedEntry(entry); // Zapisz też entry ze zmapowanym statusem
+        setShowDetailsModal(true);
+      }
+    } catch (e) {
+      console.error('[attendance] Error fetching record details:', e);
+    }
   };
 
   useEffect(() => {
@@ -236,15 +259,17 @@ export default function attendance() {
           </Text>
           {entries && entries.length > 0 ? (
             entries.map((it, idx) => (
-              <Card key={idx} className="mt-3 p-4">
-                <View className="flex-row items-center justify-between">
-                  <Text className={`${textClass} text-base font-medium`}>{it.subject}</Text>
-                  <Text className={`${statusColor(it.status)} text-base`}>{it.status}</Text>
-                </View>
-                <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                  {new Date(it.date).toLocaleDateString('pl-PL')}
-                </Text>
-              </Card>
+              <TouchableOpacity key={idx} onPress={() => handleRecordClick(it)}>
+                <Card className="mt-3 p-4">
+                  <View className="flex-row items-center justify-between">
+                    <Text className={`${textClass} text-base font-medium`}>{it.subject}</Text>
+                    <Text className={`${statusColor(it.status)} text-base`}>{it.status}</Text>
+                  </View>
+                  <Text className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
+                    {new Date(it.date).toLocaleDateString('pl-PL')}
+                  </Text>
+                </Card>
+              </TouchableOpacity>
             ))
           ) : (
             <EmptyState
@@ -254,6 +279,103 @@ export default function attendance() {
           )}
         </View>
       </View>
+
+      {/* Modal ze szczegółami frekwencji */}
+      <Modal
+        visible={showDetailsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDetailsModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: bg, borderRadius: 14, padding: 16, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10 }}>
+            {selectedRecord && selectedEntry && (
+              <>
+                {/* Header: ikona statusu + tytuł */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                  <View style={{ 
+                    width: 64, 
+                    height: 64, 
+                    borderRadius: 32, 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    backgroundColor: selectedEntry.status === "Obecny" ? '#16A34A'
+                      : selectedEntry.status === "Spóźniony" ? '#F59E0B'
+                      : selectedEntry.status === "Usprawiedliwiony" ? '#3B82F6'
+                      : '#EF4444'
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>
+                      {selectedEntry.status === "Obecny" ? '✓'
+                        : selectedEntry.status === "Spóźniony" ? '⏰'
+                        : selectedEntry.status === "Usprawiedliwiony" ? 'U'
+                        : '✗'}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: theme === 'dark' ? '#fff' : '#111' }}>
+                      Szczegóły frekwencji
+                    </Text>
+                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280', marginTop: 2, fontSize: 13 }}>
+                      {new Date(selectedRecord.data).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: theme === 'dark' ? '#111827' : '#E5E7EB', marginBottom: 12 }} />
+
+                {/* Informacje szczegółowe */}
+                <View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Status</Text>
+                    <Text style={{ 
+                      color: selectedEntry.status === "Obecny" ? '#16A34A'
+                        : selectedEntry.status === "Spóźniony" ? '#F59E0B'
+                        : selectedEntry.status === "Usprawiedliwiony" ? '#3B82F6'
+                        : '#EF4444',
+                      fontWeight: '700' 
+                    }}>
+                      {selectedEntry.status}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Przedmiot</Text>
+                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>
+                      {selectedRecord.przedmiot || selectedEntry.subject || 'Matematyka'}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Nauczyciel</Text>
+                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>Jan Kowalski</Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Godzina lekcyjna</Text>
+                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>
+                      Lekcja #{selectedRecord.godzina_lekcyjna_id}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14, gap: 8 }}>
+                  <TouchableOpacity 
+                    onPress={() => setShowDetailsModal(false)} 
+                    style={{ 
+                      paddingHorizontal: 12, 
+                      paddingVertical: 8, 
+                      borderRadius: 8, 
+                      backgroundColor: theme === 'dark' ? '#111827' : '#F3F4F6' 
+                    }}
+                  >
+                    <Text style={{ color: theme === 'dark' ? '#E5E7EB' : '#111' }}>Zamknij</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

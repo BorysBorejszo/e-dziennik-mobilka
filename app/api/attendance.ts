@@ -15,6 +15,7 @@ export type AttendanceRecord = {
 };
 
 export type AttendanceEntry = {
+  id?: number; // Optional ID from the record
   date: string; // ISO date
   subject: string;
   status: "Obecny" | "Nieobecny" | "Spóźniony" | "Usprawiedliwiony";
@@ -239,7 +240,7 @@ export const getUserAttendance = async (userId: number): Promise<AttendanceRespo
     else if (rs.includes('nie') || rs.includes('abs')) status = 'Nieobecny';
     else if (rs.includes('spó') || rs.includes('spo') || rs.includes('late')) status = 'Spóźniony';
 
-    return { date, subject, status } as AttendanceEntry;
+    return { id: it.id, date, subject, status } as AttendanceEntry;
   });
 
   return { recent: mapped };

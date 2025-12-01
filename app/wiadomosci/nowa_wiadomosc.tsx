@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { router } from "expo-router";
 import * as React from "react";
-import SafeView from "../components/SafeView";
 import {
+	ActivityIndicator,
 	Alert,
 	KeyboardAvoidingView,
 	Platform,
@@ -10,27 +10,93 @@ import {
 	Text,
 	TextInput,
 	TouchableOpacity,
-	View,
+	View
 } from "react-native";
+import SafeView from "../components/SafeView";
 
 import GlassCard from "../../components/GlassCard";
+import { createMessage } from "../api/messages";
+import { findUserByUsername } from "../api/users";
+import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function NowaWiadomosc() {
-	const [to, setTo] = React.useState("");
+	const { user } = useUser();
+	const [recipientUsername, setRecipientUsername] = React.useState("");
 	const [subject, setSubject] = React.useState("");
 	const [body, setBody] = React.useState("");
+	const [sending, setSending] = React.useState(false);
 	const { theme } = useTheme();
 
-	function onSend() {
-		if (!to.trim()) {
-			Alert.alert("Brak odbiorcy", "Proszę podać odbiorcę wiadomości.");
+	async function onSend() {
+		if (!recipientUsername.trim()) {
+			Alert.alert("Brak odbiorcy", "Proszę podać nazwę użytkownika odbiorcy.");
 			return;
 		}
 
-		console.log("Wysyłam wiadomość:", { to, subject, body });
-		Alert.alert("Wysłano", "Wiadomość została wysłana.");
-		router.back();
+		if (!subject.trim()) {
+			Alert.alert("Brak tematu", "Proszę podać temat wiadomości.");
+			return;
+		}
+
+		if (!body.trim()) {
+			Alert.alert("Brak treści", "Proszę wpisać treść wiadomości.");
+			return;
+		}
+
+		if (!user) {
+			Alert.alert("Błąd", "Nie jesteś zalogowany.");
+			return;
+		}
+
+		setSending(true);
+		try {
+			// Find user by username
+			console.log('[NowaWiadomosc] Current user (sender):', user);
+			console.log('[NowaWiadomosc] Looking for recipient username:', recipientUsername);
+			const recipient = await findUserByUsername(recipientUsername);
+			
+			if (!recipient) {
+				Alert.alert("Błąd", `Nie znaleziono użytkownika o nazwie "${recipientUsername}".`);
+				setSending(false);
+				return;
+			}
+
+			console.log('[NowaWiadomosc] Found recipient:', { 
+				username: recipient.username, 
+				uczen_id: recipient.id,
+				user_id: recipient.user_id 
+			});
+
+			// Use id (uczen_id) from the uczniowie table
+			// The backend will handle the mapping from uczen_id to proper user
+			const senderUczenId = user.id;
+			const recipientUczenId = recipient.id;
+
+			console.log('[NowaWiadomosc] Sending message with uczen_id values:', {
+				nadawca_uczen_id: senderUczenId,
+				odbiorca_uczen_id: recipientUczenId
+			});
+
+			const result = await createMessage({
+				nadawca_id: senderUczenId,
+				odbiorca_id: recipientUczenId,
+				temat: subject,
+				tresc: body,
+			});
+
+			if (result) {
+				Alert.alert("Wysłano", "Wiadomość została wysłana.");
+				router.back();
+			} else {
+				Alert.alert("Błąd", "Nie udało się wysłać wiadomości.");
+			}
+		} catch (error) {
+			console.error("Send message error:", error);
+			Alert.alert("Błąd", "Wystąpił błąd podczas wysyłania wiadomości.");
+		} finally {
+			setSending(false);
+		}
 	}
 
 	const bg = theme === 'dark' ? 'bg-black' : 'bg-white';
@@ -55,15 +121,16 @@ export default function NowaWiadomosc() {
 
 					<GlassCard className="m-4">
 						<View>
-							<Text className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} mb-2`}>Do</Text>
+							<Text className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} mb-2`}>Do (nazwa użytkownika)</Text>
 							<View className={`flex-row items-center rounded-lg px-3 py-2 border ${theme === 'dark' ? 'bg-black border-gray-700' : 'bg-white border-gray-200'}`}>
 								<Ionicons name="person-outline" size={18} color="#9CA3AF" />
 								<TextInput
 									className={`flex-1 ml-2 text-base ${textClass}`}
-									placeholder="np. jan.nowak"
+									placeholder="np. jan.kowalski"
 									placeholderTextColor={theme === 'dark' ? '#888' : '#666'}
-									value={to}
-									onChangeText={setTo}
+									value={recipientUsername}
+									onChangeText={setRecipientUsername}
+									autoCapitalize="none"
 								/>
 							</View>
 						</View>
@@ -103,8 +170,13 @@ export default function NowaWiadomosc() {
 					<TouchableOpacity
 						className="bg-blue-500 rounded-full h-14 justify-center items-center shadow-lg"
 						onPress={onSend}
+						disabled={sending}
 					>
-						<Text className={`${textClass} text-base font-semibold`}>Wyślij</Text>
+						{sending ? (
+							<ActivityIndicator color="#fff" />
+						) : (
+							<Text className="text-white text-base font-semibold">Wyślij</Text>
+						)}
 					</TouchableOpacity>
 				</View>
 			</KeyboardAvoidingView>

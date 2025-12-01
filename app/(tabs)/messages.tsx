@@ -1,72 +1,78 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
-// router not needed for read-only messages screen
+import { useRouter } from "expo-router";
 import * as React from "react";
 import {
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { fetchUserMessagesRemote, Message } from "../api/messages";
+import {
+    convertToDisplayMessage,
+    deleteMessage,
+    getAllMessages,
+    getMessagesForUser,
+    Message,
+    updateMessage
+} from "../api/messages";
 import Header from "../components/Header";
 import Avatar from "../components/ui/Avatar";
 import Card from "../components/ui/Card";
 import EmptyState from "../components/ui/EmptyState";
-import { useUser } from "../context/UserContext";
 import UserGate from "../components/UserGate";
+import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function Messages() {
   const { user } = useUser();
+  const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [selectedMessage, setSelectedMessage] = React.useState<number | null>(null);
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [tab, setTab] = React.useState<'inbox' | 'sent'>('inbox');
   const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const { theme } = useTheme();
   const bg = theme === 'dark' ? 'bg-black' : 'bg-white';
   const textClass = theme === 'dark' ? 'text-white' : 'text-black';
 
-  React.useEffect(() => {
-    const fetchMessages = async () => {
-      if (!user) return;
-      setLoading(true);
-      try {
-        // Fetch messages from the server (no local fallback)
-        const data = await fetchUserMessagesRemote(user.id);
-        const items: any[] = data.messages || [];
-        // If the server provides explicit sender/recipient ids, filter by them.
-        // If it doesn't (some backends return pre-filtered results without ids), show all items.
-        const hasIds = items.some((m) => (m.sender_id != null) || (m.recipient_id != null));
-        // debug log to help diagnose empty lists
-        // eslint-disable-next-line no-console
-        console.debug('[Messages] fetched', items.length, 'items, hasIds=', hasIds);
-
-        let safe: Message[];
-        if (hasIds) {
-          const uid = Number(user.id);
-          safe = items.filter((m: any) => {
-            const sid = m.sender_id != null ? Number(m.sender_id) : null;
-            const rid = m.recipient_id != null ? Number(m.recipient_id) : null;
-            return sid === uid || rid === uid;
-          }) as Message[];
-        } else {
-          // assume server already returned only relevant messages
-          safe = items as Message[];
-        }
-
-        setMessages(safe);
-      } catch (error) {
-        console.error("Failed to fetch messages:", error);
-        setMessages([]);
-      } finally {
-        setLoading(false);
+  const fetchMessages = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      console.log('[Messages] Current user uczen_id:', user.id);
+      
+      // Debug: Check total messages in database
+      const allMessages = await getAllMessages();
+      console.log('[Messages] === DEBUG: Total messages in database:', allMessages.length);
+      if (allMessages.length > 0) {
+        console.log('[Messages] === DEBUG: Sample DB records:', JSON.stringify(allMessages.slice(0, 2), null, 2));
+      } else {
+        console.log('[Messages] === DEBUG: Database is empty! No messages exist yet.');
       }
-    };
+      
+      // Fetch messages for this uczen_id
+      const records = await getMessagesForUser(user.id);
+      const displayMessages = records.map(r => convertToDisplayMessage(r, user.id));
+      console.log('[Messages] Fetched messages for uczen_id:', user.id);
+      console.log('[Messages] Message count:', displayMessages.length);
+      console.log('[Messages] Sample:', displayMessages[0]);
+      setMessages(displayMessages);
+    } catch (error) {
+      console.error("Failed to fetch messages:", error);
+      setMessages([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  React.useEffect(() => {
     fetchMessages();
   }, [user?.id]);
 
@@ -78,28 +84,80 @@ export default function Messages() {
 
   // Split messages into received (odbierane) and sent (wyslane)
   const received = messages.filter(m => {
-    // prefer explicit recipient_id when available
-    if ((m as any).recipient_id != null) return Number((m as any).recipient_id) === Number(user?.id);
-    // fallback: if not available, assume messages returned for this user are received
-    return true;
+    // Wiadomość odebrana: odbiorca to obecny użytkownik
+    const isReceived = m.recipient_id != null && Number(m.recipient_id) === Number(user?.id);
+    if (isReceived) {
+      console.log('[Messages] Received message:', { 
+        id: m.id, 
+        subject: m.subject, 
+        recipient_id: m.recipient_id, 
+        user_id: user?.id 
+      });
+    }
+    return isReceived || (m.recipient_id == null); // Fallback dla brakujących ID
   });
 
   const sent = messages.filter(m => {
-    if ((m as any).sender_id != null) return Number((m as any).sender_id) === Number(user?.id);
-    // fallback: can't reliably detect sent messages from local mock — assume none
-    return false;
+    // Wiadomość wysłana: nadawca to obecny użytkownik
+    const isSent = m.sender_id != null && Number(m.sender_id) === Number(user?.id);
+    if (isSent) {
+      console.log('[Messages] Sent message:', { 
+        id: m.id, 
+        subject: m.subject, 
+        sender_id: m.sender_id, 
+        user_id: user?.id 
+      });
+    }
+    return isSent;
   });
+
+  console.log('[Messages] Total:', messages.length, 'Received:', received.length, 'Sent:', sent.length);
 
   const filteredMessages = tab === 'inbox' ? filterBySearch(received) : filterBySearch(sent);
 
   const selectedMsg = messages.find(m => m.id === selectedMessage);
 
-  const openMessage = (msgId: number) => {
+  const openMessage = async (msgId: number) => {
     setSelectedMessage(msgId);
+    // Mark as read when opening
+    const msg = messages.find(m => m.id === msgId);
+    if (msg && msg.unread && msg.raw) {
+      await updateMessage(msgId, { przeczytana: true });
+      // Update local state
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, unread: false } : m));
+    }
   };
 
   const closeMessage = () => {
     setSelectedMessage(null);
+  };
+
+  const handleDeleteMessage = async (msgId: number) => {
+    Alert.alert(
+      "Usuń wiadomość",
+      "Czy na pewno chcesz usunąć tę wiadomość?",
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Usuń",
+          style: "destructive",
+          onPress: async () => {
+            const success = await deleteMessage(msgId);
+            if (success) {
+              setMessages(prev => prev.filter(m => m.id !== msgId));
+              setSelectedMessage(null);
+            } else {
+              Alert.alert("Błąd", "Nie udało się usunąć wiadomości");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchMessages();
   };
 
   return (
@@ -109,6 +167,13 @@ export default function Messages() {
         stickyHeaderIndices={[0]}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={handleRefresh}
+            tintColor={theme === 'dark' ? '#fff' : '#000'}
+          />
+        }
       >
         <Header title="Wiadomości" subtitle="Przeglądaj swoje wiadomości" />
 
@@ -141,6 +206,17 @@ export default function Messages() {
             textAlignVertical="center"
             style={{ lineHeight: 20 }}
           />
+        </View>
+
+        {/* New Message Button */}
+        <View className="px-4 mt-3">
+          <TouchableOpacity 
+            onPress={() => router.push('/wiadomosci/nowa_wiadomosc')}
+            className="bg-blue-500 py-3 rounded-lg flex-row items-center justify-center"
+          >
+            <Ionicons name="create-outline" size={20} color="#fff" />
+            <Text className="text-white font-semibold ml-2">Nowa wiadomość</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Messages list */}
@@ -227,12 +303,23 @@ export default function Messages() {
 
                 {/* Actions */}
                 <View className={`p-4 border-t ${theme === 'dark' ? 'border-neutral-800' : 'border-gray-200'}`}>
-                  <TouchableOpacity 
-                    className="bg-blue-500 py-3 rounded-xl items-center"
-                    onPress={closeMessage}
-                  >
-                    <Text className="text-white font-semibold text-base">Zamknij</Text>
-                  </TouchableOpacity>
+                  <View className="flex-row gap-2">
+                    <TouchableOpacity 
+                      className="flex-1 bg-red-500 py-3 rounded-xl items-center"
+                      onPress={() => handleDeleteMessage(selectedMsg.id)}
+                    >
+                      <View className="flex-row items-center">
+                        <Ionicons name="trash-outline" size={18} color="#fff" />
+                        <Text className="text-white font-semibold text-base ml-2">Usuń</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      className="flex-1 bg-blue-500 py-3 rounded-xl items-center"
+                      onPress={closeMessage}
+                    >
+                      <Text className="text-white font-semibold text-base">Zamknij</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </>
             )}

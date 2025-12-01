@@ -1,3 +1,27 @@
+// API Types
+// IMPORTANT: nadawca_id and odbiorca_id are Django user_id, NOT uczen_id!
+export type MessageRecord = {
+  id: number;
+  nadawca_id: number; // Django user_id (sender)
+  odbiorca_id: number; // Django user_id (recipient)
+  temat: string;
+  tresc: string;
+  data_wyslania: string;
+  przeczytana: boolean;
+};
+
+export type CreateMessagePayload = {
+  nadawca_id: number; // Django user_id (sender)
+  odbiorca_id: number; // Django user_id (recipient)
+  temat: string;
+  tresc: string;
+};
+
+export type UpdateMessagePayload = {
+  przeczytana?: boolean;
+};
+
+// Display Types
 export type Message = {
   id: number;
   sender: string;
@@ -9,11 +33,19 @@ export type Message = {
   avatar: string;
   sender_id?: number | null;
   recipient_id?: number | null;
-  raw?: any;
+  raw?: MessageRecord;
 };
 
 export type MessagesResponse = {
   messages: Message[];
+};
+
+const API_BASE = 'http://dziennik.polandcentral.cloudapp.azure.com';
+const ADMIN_KEY = '7KU2mc6ZxflGYE5QqjmZ7wcN0OI3rX1p';
+
+const headers = {
+  'ADMIN-KEY': ADMIN_KEY,
+  'Content-Type': 'application/json',
 };
 
 const DB: Record<number, MessagesResponse> = {
@@ -210,4 +242,153 @@ export const fetchUserMessagesRemote = async (userId: number): Promise<MessagesR
     console.error('[fetchUserMessagesRemote] unexpected error', e);
     return { messages: [] };
   }
+};
+
+// GET all messages
+export const getAllMessages = async (): Promise<MessageRecord[]> => {
+  try {
+    const response = await fetch(`${API_BASE}/api/wiadomosci/`, { headers });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('[messages] getAllMessages error:', error);
+    return [];
+  }
+};
+
+// GET messages for user (as sender or recipient)
+// IMPORTANT: userId parameter should be Django user_id, NOT uczen_id
+export const getMessagesForUser = async (userId: number): Promise<MessageRecord[]> => {
+  try {
+    const url = `${API_BASE}/api/wiadomosci/?user_id=${userId}`;
+    console.log('[messages] Fetching messages for Django user_id:', userId);
+    console.log('[messages] URL:', url);
+    const response = await fetch(url, { headers });
+    console.log('[messages] Response status:', response.status);
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('[messages] Response error:', text);
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    console.log('[messages] Received records:', data.length, 'Sample:', data[0]);
+    return data;
+  } catch (error) {
+    console.error('[messages] getMessagesForUser error:', error);
+    return [];
+  }
+};
+
+// GET single message
+export const getMessageById = async (id: number): Promise<MessageRecord | null> => {
+  try {
+    const response = await fetch(`${API_BASE}/api/wiadomosci/${id}/`, { headers });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('[messages] getMessageById error:', error);
+    return null;
+  }
+};
+
+// POST create message
+// IMPORTANT: nadawca_id and odbiorca_id should be Django user_id, NOT uczen_id
+export const createMessage = async (payload: CreateMessagePayload): Promise<MessageRecord | null> => {
+  try {
+    console.log('[messages] Creating message with payload (user_id values):', {
+      nadawca_id: payload.nadawca_id,
+      odbiorca_id: payload.odbiorca_id,
+      temat: payload.temat
+    });
+    const response = await fetch(`${API_BASE}/api/wiadomosci/`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[messages] Create failed:', response.status, errorText);
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const result = await response.json();
+    console.log('[messages] Message created successfully:', result.id);
+    return result;
+  } catch (error) {
+    console.error('[messages] createMessage error:', error);
+    return null;
+  }
+};
+
+// PUT update message (mark as read)
+export const updateMessage = async (id: number, payload: UpdateMessagePayload): Promise<MessageRecord | null> => {
+  try {
+    const response = await fetch(`${API_BASE}/api/wiadomosci/${id}/`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('[messages] updateMessage error:', error);
+    return null;
+  }
+};
+
+// DELETE message
+export const deleteMessage = async (id: number): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_BASE}/api/wiadomosci/${id}/`, {
+      method: 'DELETE',
+      headers,
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('[messages] deleteMessage error:', error);
+    return false;
+  }
+};
+
+// Helper: Convert MessageRecord to Message for display
+export const convertToDisplayMessage = (record: MessageRecord, currentUserId?: number): Message => {
+  const isSender = record.nadawca_id === currentUserId;
+  const senderName = `Użytkownik ${record.nadawca_id}`;
+  const avatar = senderName[0].toUpperCase();
+  const preview = record.tresc.slice(0, 120);
+  
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+    } else if (diffDays === 1) {
+      return 'Wczoraj';
+    } else if (diffDays < 7) {
+      return `${diffDays} dni temu`;
+    } else {
+      return date.toLocaleDateString('pl-PL');
+    }
+  };
+
+  return {
+    id: record.id,
+    sender: senderName,
+    subject: record.temat,
+    preview,
+    content: record.tresc,
+    time: formatTime(record.data_wyslania),
+    unread: !record.przeczytana,
+    avatar,
+    sender_id: record.nadawca_id,
+    recipient_id: record.odbiorca_id,
+    raw: record,
+  };
 };

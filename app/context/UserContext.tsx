@@ -7,6 +7,7 @@ export interface UserData {
   // server-side student id (when different from local/mock id). Use this for API calls.
   serverId?: number;
   name: string;
+  username?: string; // Django username for messages
   role?: string;
   classId?: number;
   attendance: {
@@ -47,6 +48,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
+        // Try to load stored username from AsyncStorage
+        let storedUsername: string | null = null;
+        try {
+          storedUsername = await AsyncStorage.getItem('@e-dziennik:username');
+          console.log('[UserContext] Loaded stored username:', storedUsername);
+        } catch (e) {
+          console.log('[UserContext] Failed to load stored username:', e);
+        }
+
         // Decode JWT to get user info immediately
         const payload = decodeJWT(access);
         let jwtUserId: number | undefined;
@@ -59,6 +69,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             jwtClassId = payload.klasa_id;
             // eslint-disable-next-line no-console
             console.log('[UserContext] JWT payload:', payload);
+            console.log('[UserContext] JWT uczen_id:', jwtUserId);
+            console.log('[UserContext] JWT full payload keys:', Object.keys(payload));
+            console.log('[UserContext] ⚠️ IMPORTANT: uczen_id from JWT may NOT be Django user.id!');
         }
 
         // try to fetch profile from common endpoints
@@ -92,11 +105,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           const first = candidate.first_name ?? candidate.firstName ?? candidate.given_name;
           const last = candidate.last_name ?? candidate.lastName ?? candidate.family_name;
           const name = (first || last) ? `${first ?? ''} ${last ?? ''}`.trim() : (candidate.name ?? candidate.username ?? 'Użytkownik');
+          const username = candidate.username ?? profile.username ?? undefined;
+
+          console.log('[UserContext] Profile username:', username);
+          console.log('[UserContext] Profile ID (uczen_id):', id);
 
           const u: UserData = {
             id: id ?? -1,
             serverId: id ?? undefined,
             name,
+            username,
             role: jwtRole,
             classId: jwtClassId,
             attendance: profile.attendance ?? { percentage: '', present: 0, late: 0, absent: 0 },
@@ -109,6 +127,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 id: jwtUserId,
                 serverId: jwtUserId,
                 name: 'Użytkownik',
+                username: storedUsername ?? undefined, // Use stored username from AsyncStorage
                 role: jwtRole,
                 classId: jwtClassId,
                 attendance: { percentage: '', present: 0, late: 0, absent: 0 },
@@ -130,6 +149,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const clearUser = () => {
     setUserState(null);
     AsyncStorage.removeItem('selectedUserId').catch(() => {});
+    AsyncStorage.removeItem('@e-dziennik:username').catch(() => {}); // Clear stored username
     // also clear tokens in case of logout
     auth.clearTokens().catch(() => {});
   };

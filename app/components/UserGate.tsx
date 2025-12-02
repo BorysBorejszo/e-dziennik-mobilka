@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import auth, { decodeJWT } from '../api/auth';
@@ -5,6 +6,8 @@ import { calculateWeightedAverage, getUserGrades } from '../api/grades';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../theme/ThemeContext';
 import PasswordInput from './ui/PasswordInput';
+
+const USERNAME_KEY = '@e-dziennik:username';
 
 export default function UserGate({ children }: { children: React.ReactNode }) {
   const { user, users, setUser, ready } = useUser();
@@ -34,7 +37,9 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
   const onLogin = async () => {
     setLoading(true);
     try {
-  if (isRegistering) {
+      let loggedUsername = username; // Store the username used for login
+      
+      if (isRegistering) {
         // basic validation
         if (!email || !firstName || !lastName) {
           Alert.alert('Błąd', 'Wypełnij wszystkie pola rejestracji');
@@ -45,10 +50,16 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
           return;
         }
         // use email as username by default
+        loggedUsername = email;
         await auth.register(email, password, { email, first_name: firstName, last_name: lastName });
       } else {
         await auth.login(username, password);
       }
+      
+      // Store username for later use
+      await AsyncStorage.setItem(USERNAME_KEY, loggedUsername);
+      console.log('[UserGate] Stored username:', loggedUsername);
+      
       // after successful auth, try to fetch the full server-side profile and use it as the app user
       let profileJson: any = null;
       try {
@@ -91,6 +102,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
         const candidate = profileJson.user ?? profileJson.uczen ?? profileJson;
         const id = Number(candidate.id ?? candidate.pk ?? profileJson.id ?? null) || undefined;
         const name = normalizeName(profileJson) ?? 'Użytkownik';
+        const profileUsername = candidate.username ?? candidate.userName ?? loggedUsername;
         const attendance = profileJson.attendance ?? profileJson.presence ?? { percentage: '', present: 0, late: 0, absent: 0 };
         const grades = profileJson.grades ?? { average: '', behavior: '' };
 
@@ -98,6 +110,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
           id: id ?? -1,
           serverId: id ?? undefined,
           name,
+          username: profileUsername,
           attendance,
           grades,
         } as any;
@@ -119,6 +132,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
           id: jwtId ?? -1,
           serverId: jwtId ?? undefined,
           name: 'Użytkownik',
+          username: loggedUsername,
           attendance: { percentage: '', present: 0, late: 0, absent: 0 },
           grades: { average: '', behavior: '' },
         } as any;

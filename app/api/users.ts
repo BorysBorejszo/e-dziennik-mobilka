@@ -1,12 +1,21 @@
 // User API functions
 
+import { getAllMessages } from './messages';
+
 export type UserRecord = {
-  id: number; // This is uczen_id (student record ID in uczniowie table)
+  id: number; // ID from uczniowie table - NOT the same as Django user.id!
   username: string;
   email?: string;
   first_name?: string;
   last_name?: string;
-  user_id?: number; // Django user ID - THIS is what messages API uses!
+  telefon?: string;
+  data_urodzenia?: string;
+};
+
+export type DjangoUserMapping = {
+  username: string;
+  django_user_id: number;
+  uczniowie_id?: number;
 };
 
 const API_BASE = 'http://dziennik.polandcentral.cloudapp.azure.com';
@@ -17,7 +26,59 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-// GET all users (uczniowie/students)
+// Cache for username -> Django user.id mapping
+let userMappingCache: Map<string, number> | null = null;
+
+// Build mapping from messages in database
+export const buildUserMapping = async (): Promise<Map<string, number>> => {
+  console.log('[users] Building username -> Django user.id mapping from messages...');
+  
+  try {
+    const allMessages = await getAllMessages();
+    const mapping = new Map<string, number>();
+    
+    allMessages.forEach((msg: any) => {
+      // Add sender mapping
+      if (msg.nadawca_username && msg.nadawca_id) {
+        mapping.set(msg.nadawca_username, msg.nadawca_id);
+      }
+      // Add recipient mapping
+      if (msg.odbiorca_username && msg.odbiorca_id) {
+        mapping.set(msg.odbiorca_username, msg.odbiorca_id);
+      }
+    });
+    
+    console.log('[users] Built mapping for', mapping.size, 'users');
+    console.log('[users] Sample mappings:', Array.from(mapping.entries()).slice(0, 5));
+    
+    userMappingCache = mapping;
+    return mapping;
+  } catch (error) {
+    console.error('[users] buildUserMapping error:', error);
+    return new Map();
+  }
+};
+
+// Find Django user.id by username
+export const findDjangoUserIdByUsername = async (username: string): Promise<number | null> => {
+  // Build cache if not exists
+  if (!userMappingCache) {
+    await buildUserMapping();
+  }
+  
+  const userId = userMappingCache?.get(username.toLowerCase()) || null;
+  
+  if (userId) {
+    console.log('[users] ✅ Found Django user.id for', username, ':', userId);
+  } else {
+    console.log('[users] ❌ No Django user.id found for', username);
+    console.log('[users] Available usernames:', Array.from(userMappingCache?.keys() || []).slice(0, 10));
+  }
+  
+  return userId;
+};
+
+// GET all users from uczniowie table
 export const getAllUsers = async (): Promise<UserRecord[]> => {
   try {
     const response = await fetch(`${API_BASE}/api/uczniowie/`, { headers });
@@ -27,9 +88,6 @@ export const getAllUsers = async (): Promise<UserRecord[]> => {
     }
     const data = await response.json();
     console.log('[users] Fetched users:', data.length);
-    if (data.length > 0) {
-      console.log('[users] Sample user record:', data[0]);
-    }
     return data;
   } catch (error) {
     console.error('[users] getAllUsers error:', error);
@@ -37,28 +95,27 @@ export const getAllUsers = async (): Promise<UserRecord[]> => {
   }
 };
 
-// Find user by username and return user_id (Django user ID for messages)
+// Find user by username - RETURNS uczniowie.id for messages!
 export const findUserByUsername = async (username: string): Promise<UserRecord | null> => {
   try {
     const users = await getAllUsers();
-    console.log('[users] Searching for username:', username);
+    console.log('[users] 🔍 Searching for username:', username);
     console.log('[users] Total users to search:', users.length);
     
     const found = users.find(u => {
       const matches = u.username.toLowerCase() === username.toLowerCase();
       if (matches) {
-        console.log('[users] MATCH! Full user record:', JSON.stringify(u, null, 2));
+        console.log('[users] ✅ MATCH! Full user record:', JSON.stringify(u, null, 2));
+        console.log('[users] USE THIS ID FOR MESSAGES:', u.id);
       }
       return matches;
     });
     
     if (found) {
-      console.log('[users] Found user by username:', { 
+      console.log('[users] Found user:', { 
         username, 
-        uczen_id: found.id, 
-        user_id: found.user_id,
-        all_fields: Object.keys(found),
-        IMPORTANT: 'For messages, use user_id NOT id!'
+        uczniowie_id: found.id,
+        USE_FOR_MESSAGES: found.id
       });
     } else {
       console.log('[users] ❌ User NOT found:', username);

@@ -1,9 +1,12 @@
 // API Types
-// IMPORTANT: nadawca_id and odbiorca_id are Django user_id, NOT uczen_id!
+// CRITICAL: nadawca_id and odbiorca_id are Django auth user.id, NOT uczniowie.id!
+// Use findDjangoUserIdByUsername() from users.ts to get correct ID for recipient
 export type MessageRecord = {
   id: number;
-  nadawca_id: number; // Django user_id (sender)
-  odbiorca_id: number; // Django user_id (recipient)
+  nadawca_id: number; // Django auth user.id (NOT uczniowie.id!)
+  nadawca_username?: string; // Added by backend for display
+  odbiorca_id: number; // Django auth user.id (NOT uczniowie.id!)
+  odbiorca_username?: string; // Added by backend for display
   temat: string;
   tresc: string;
   data_wyslania: string;
@@ -11,8 +14,8 @@ export type MessageRecord = {
 };
 
 export type CreateMessagePayload = {
-  nadawca_id: number; // Django user_id (sender)
-  odbiorca_id: number; // Django user_id (recipient)
+  nadawca_id: number; // Django auth user.id - get from JWT token (user.id)
+  odbiorca_id: number; // Django auth user.id - get from findDjangoUserIdByUsername()
   temat: string;
   tresc: string;
 };

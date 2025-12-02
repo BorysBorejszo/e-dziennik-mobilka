@@ -16,7 +16,7 @@ import SafeView from "../components/SafeView";
 
 import GlassCard from "../../components/GlassCard";
 import { createMessage } from "../api/messages";
-import { findUserByUsername } from "../api/users";
+import { findDjangoUserIdByUsername } from "../api/users";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -51,36 +51,31 @@ export default function NowaWiadomosc() {
 
 		setSending(true);
 		try {
-			// Find user by username
-			console.log('[NowaWiadomosc] Current user (sender):', user);
+			// Find Django user.id by username using message history
+			console.log('[NowaWiadomosc] Current user (sender) Django user.id:', user.id);
 			console.log('[NowaWiadomosc] Looking for recipient username:', recipientUsername);
-			const recipient = await findUserByUsername(recipientUsername);
 			
-			if (!recipient) {
-				Alert.alert("Błąd", `Nie znaleziono użytkownika o nazwie "${recipientUsername}".`);
+			const recipientDjangoId = await findDjangoUserIdByUsername(recipientUsername);
+			
+			if (!recipientDjangoId) {
+				Alert.alert("Błąd", `Nie znaleziono użytkownika o nazwie "${recipientUsername}".\n\nUwaga: Możesz wysyłać wiadomości tylko do użytkowników, którzy mają już historię wiadomości w systemie.`);
 				setSending(false);
 				return;
 			}
 
-			console.log('[NowaWiadomosc] Found recipient:', { 
-				username: recipient.username, 
-				uczen_id: recipient.id,
-				user_id: recipient.user_id 
-			});
+			console.log('[NowaWiadomosc] ✅ Found recipient Django user.id:', recipientDjangoId);
 
-			// Use id (uczen_id) from the uczniowie table
-			// The backend will handle the mapping from uczen_id to proper user
-			const senderUczenId = user.id;
-			const recipientUczenId = recipient.id;
+			// Use Django user.id for both sender and recipient
+			const senderDjangoId = user.id; // From JWT - this is Django user.id
 
-			console.log('[NowaWiadomosc] Sending message with uczen_id values:', {
-				nadawca_uczen_id: senderUczenId,
-				odbiorca_uczen_id: recipientUczenId
+			console.log('[NowaWiadomosc] 📨 Sending message with Django user IDs:', {
+				nadawca_django_id: senderDjangoId,
+				odbiorca_django_id: recipientDjangoId
 			});
 
 			const result = await createMessage({
-				nadawca_id: senderUczenId,
-				odbiorca_id: recipientUczenId,
+				nadawca_id: senderDjangoId,
+				odbiorca_id: recipientDjangoId,
 				temat: subject,
 				tresc: body,
 			});

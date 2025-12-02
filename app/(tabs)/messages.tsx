@@ -105,8 +105,15 @@ export default function Messages() {
   };
 
   React.useEffect(() => {
-    fetchMessages();
-  }, [user?.id]);
+    // Re-fetch messages when user.id OR user.username changes
+    // This handles the case when username is loaded after initial mount
+    if (user?.username) {
+      fetchMessages();
+    } else if (user?.id) {
+      // User is loaded but username not yet - wait for it
+      console.log('[Messages] User loaded but no username yet, waiting...');
+    }
+  }, [user?.id, user?.username]);
 
   const filterBySearch = (arr: Message[]) => arr.filter(msg =>
     (msg.sender ?? '').toLowerCase().includes(search.toLowerCase()) ||

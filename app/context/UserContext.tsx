@@ -48,6 +48,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
+        // Try to load stored username from AsyncStorage
+        let storedUsername: string | null = null;
+        try {
+          storedUsername = await AsyncStorage.getItem('@e-dziennik:username');
+          console.log('[UserContext] Loaded stored username:', storedUsername);
+        } catch (e) {
+          console.log('[UserContext] Failed to load stored username:', e);
+        }
+
         // Decode JWT to get user info immediately
         const payload = decodeJWT(access);
         let jwtUserId: number | undefined;
@@ -118,6 +127,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 id: jwtUserId,
                 serverId: jwtUserId,
                 name: 'Użytkownik',
+                username: storedUsername ?? undefined, // Use stored username from AsyncStorage
                 role: jwtRole,
                 classId: jwtClassId,
                 attendance: { percentage: '', present: 0, late: 0, absent: 0 },
@@ -139,6 +149,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const clearUser = () => {
     setUserState(null);
     AsyncStorage.removeItem('selectedUserId').catch(() => {});
+    AsyncStorage.removeItem('@e-dziennik:username').catch(() => {}); // Clear stored username
     // also clear tokens in case of logout
     auth.clearTokens().catch(() => {});
   };

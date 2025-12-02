@@ -2,22 +2,21 @@ import Ionicons from "@expo/vector-icons/build/Ionicons";
 import { useRouter } from "expo-router";
 import * as React from "react";
 import {
-    Alert,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-    convertToDisplayMessage,
-    deleteMessage,
-    getAllMessages,
-    getMessagesForUser,
-    Message,
-    updateMessage
+  convertToDisplayMessage,
+  deleteMessage,
+  getAllMessages,
+  Message,
+  updateMessage
 } from "../api/messages";
 import Header from "../components/Header";
 import Avatar from "../components/ui/Avatar";
@@ -45,23 +44,56 @@ export default function Messages() {
     if (!user) return;
     setLoading(true);
     try {
-      console.log('[Messages] Current user uczen_id:', user.id);
+      console.log('[Messages] ===== FETCHING MESSAGES =====');
+      console.log('[Messages] Current user.id (uczen_id):', user.id);
+      console.log('[Messages] Current user.username:', user.username);
+      console.log('[Messages] Current user.name:', user.name);
+      
+      // If we don't have username, we can't filter properly
+      if (!user.username) {
+        console.warn('[Messages] No username available - cannot fetch messages properly');
+        setMessages([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
       
       // Debug: Check total messages in database
       const allMessages = await getAllMessages();
       console.log('[Messages] === DEBUG: Total messages in database:', allMessages.length);
-      if (allMessages.length > 0) {
-        console.log('[Messages] === DEBUG: Sample DB records:', JSON.stringify(allMessages.slice(0, 2), null, 2));
-      } else {
-        console.log('[Messages] === DEBUG: Database is empty! No messages exist yet.');
+      
+      // Filter messages where user is sender OR recipient based on username
+      const userMessages = allMessages.filter(msg => 
+        msg.nadawca_username === user.username || msg.odbiorca_username === user.username
+      );
+      
+      console.log('[Messages] Messages for user', user.username, ':', userMessages.length);
+      
+      if (userMessages.length > 0) {
+        console.log('[Messages] Sample user messages:');
+        userMessages.slice(0, 3).forEach((msg, idx) => {
+          console.log(`  [${idx}] id=${msg.id}, from=${msg.nadawca_username}, to=${msg.odbiorca_username}, subject="${msg.temat}"`);
+        });
       }
       
-      // Fetch messages for this uczen_id
-      const records = await getMessagesForUser(user.id);
-      const displayMessages = records.map(r => convertToDisplayMessage(r, user.id));
-      console.log('[Messages] Fetched messages for uczen_id:', user.id);
-      console.log('[Messages] Message count:', displayMessages.length);
-      console.log('[Messages] Sample:', displayMessages[0]);
+      // Convert to display format - we need to find user's actual Django user_id from the messages
+      // The user's Django user_id is either nadawca_id or odbiorca_id where username matches
+      let userDjangoId: number | undefined;
+      for (const msg of userMessages) {
+        if (msg.nadawca_username === user.username) {
+          userDjangoId = msg.nadawca_id;
+          break;
+        } else if (msg.odbiorca_username === user.username) {
+          userDjangoId = msg.odbiorca_id;
+          break;
+        }
+      }
+      
+      console.log('[Messages] Detected Django user_id for', user.username, ':', userDjangoId);
+      
+      const displayMessages = userMessages.map(r => convertToDisplayMessage(r, userDjangoId));
+      console.log('[Messages] After conversion to display format:', displayMessages.length);
+      
       setMessages(displayMessages);
     } catch (error) {
       console.error("Failed to fetch messages:", error);
@@ -83,34 +115,41 @@ export default function Messages() {
   );
 
   // Split messages into received (odbierane) and sent (wyslane)
+  console.log('[Messages] ===== FILTERING MESSAGES =====');
+  console.log('[Messages] Current user.username:', user?.username);
+  console.log('[Messages] Total messages to filter:', messages.length);
+  
   const received = messages.filter(m => {
-    // Wiadomość odebrana: odbiorca to obecny użytkownik
-    const isReceived = m.recipient_id != null && Number(m.recipient_id) === Number(user?.id);
+    // Wiadomość odebrana: odbiorca to obecny użytkownik (porównujemy przez username w raw)
+    if (!m.raw || !user?.username) return false;
+    const isReceived = m.raw.odbiorca_username === user.username;
     if (isReceived) {
-      console.log('[Messages] Received message:', { 
+      console.log('[Messages] ✓ RECEIVED message:', { 
         id: m.id, 
         subject: m.subject, 
-        recipient_id: m.recipient_id, 
-        user_id: user?.id 
+        from: m.raw.nadawca_username,
+        to: m.raw.odbiorca_username
       });
     }
-    return isReceived || (m.recipient_id == null); // Fallback dla brakujących ID
+    return isReceived;
   });
 
   const sent = messages.filter(m => {
-    // Wiadomość wysłana: nadawca to obecny użytkownik
-    const isSent = m.sender_id != null && Number(m.sender_id) === Number(user?.id);
+    // Wiadomość wysłana: nadawca to obecny użytkownik (porównujemy przez username w raw)
+    if (!m.raw || !user?.username) return false;
+    const isSent = m.raw.nadawca_username === user.username;
     if (isSent) {
-      console.log('[Messages] Sent message:', { 
+      console.log('[Messages] ✓ SENT message:', { 
         id: m.id, 
         subject: m.subject, 
-        sender_id: m.sender_id, 
-        user_id: user?.id 
+        from: m.raw.nadawca_username,
+        to: m.raw.odbiorca_username
       });
     }
     return isSent;
   });
 
+  console.log('[Messages] ===== FILTER RESULTS =====');
   console.log('[Messages] Total:', messages.length, 'Received:', received.length, 'Sent:', sent.length);
 
   const filteredMessages = tab === 'inbox' ? filterBySearch(received) : filterBySearch(sent);

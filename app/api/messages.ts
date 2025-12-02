@@ -262,22 +262,45 @@ export const getAllMessages = async (): Promise<MessageRecord[]> => {
 };
 
 // GET messages for user (as sender or recipient)
-// IMPORTANT: userId parameter should be Django user_id, NOT uczen_id
-export const getMessagesForUser = async (userId: number): Promise<MessageRecord[]> => {
+// Try multiple endpoints/parameters to find the correct one
+export const getMessagesForUser = async (userId: number, username?: string): Promise<MessageRecord[]> => {
   try {
-    const url = `${API_BASE}/api/wiadomosci/?user_id=${userId}`;
-    console.log('[messages] Fetching messages for Django user_id:', userId);
-    console.log('[messages] URL:', url);
-    const response = await fetch(url, { headers });
-    console.log('[messages] Response status:', response.status);
-    if (!response.ok) {
-      const text = await response.text();
-      console.error('[messages] Response error:', text);
-      throw new Error(`HTTP ${response.status}`);
+    // Try different parameter combinations
+    const attempts = [
+      username ? `username=${encodeURIComponent(username)}` : null,
+      `uczen_id=${userId}`,
+      `user_id=${userId}`,
+    ].filter(Boolean) as string[];
+    
+    for (const param of attempts) {
+      const url = `${API_BASE}/api/wiadomosci/?${param}`;
+      console.log('[messages] Trying URL:', url);
+      
+      try {
+        const response = await fetch(url, { headers });
+        console.log('[messages] Response status:', response.status);
+        
+        if (!response.ok) {
+          console.log('[messages] Failed with', param, '- trying next...');
+          continue;
+        }
+        
+        const data = await response.json();
+        console.log('[messages] ✅ SUCCESS with param:', param);
+        console.log('[messages] Received records:', data.length, 'Sample:', data[0]);
+        
+        if (data.length > 0) {
+          return data;
+        }
+        console.log('[messages] Got 0 results with', param, '- trying next...');
+      } catch (err) {
+        console.log('[messages] Error with', param, ':', err);
+        continue;
+      }
     }
-    const data = await response.json();
-    console.log('[messages] Received records:', data.length, 'Sample:', data[0]);
-    return data;
+    
+    console.warn('[messages] All attempts failed, returning empty array');
+    return [];
   } catch (error) {
     console.error('[messages] getMessagesForUser error:', error);
     return [];
@@ -361,9 +384,20 @@ export const deleteMessage = async (id: number): Promise<boolean> => {
 // Helper: Convert MessageRecord to Message for display
 export const convertToDisplayMessage = (record: MessageRecord, currentUserId?: number): Message => {
   const isSender = record.nadawca_id === currentUserId;
-  const senderName = `Użytkownik ${record.nadawca_id}`;
+  // Use nadawca_username if available, otherwise fall back to generic name
+  const senderName = record.nadawca_username || `Użytkownik ${record.nadawca_id}`;
   const avatar = senderName[0].toUpperCase();
   const preview = record.tresc.slice(0, 120);
+  
+  console.log('[convertToDisplayMessage] Processing:', {
+    id: record.id,
+    nadawca_id: record.nadawca_id,
+    odbiorca_id: record.odbiorca_id,
+    currentUserId,
+    nadawca_username: record.nadawca_username,
+    odbiorca_username: record.odbiorca_username,
+    temat: record.temat
+  });
   
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);

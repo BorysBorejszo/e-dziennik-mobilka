@@ -51,8 +51,32 @@ export default function NowaWiadomosc() {
 
 		setSending(true);
 		try {
+			// Get sender username from UserContext (from profile)
+			const senderUsername = user.username;
+			
+			if (!senderUsername) {
+				Alert.alert("Błąd", "Nie można wysłać wiadomości - brak danych użytkownika. Spróbuj wylogować się i zalogować ponownie.");
+				setSending(false);
+				return;
+			}
+
+			console.log('[NowaWiadomosc] ✅ Current sender username:', senderUsername);
+
+			// Find sender's Django user.id from cache using their username
+			const senderDjangoId = await findDjangoUserIdByUsername(senderUsername);
+			
+			if (!senderDjangoId) {
+				Alert.alert(
+					"Błąd", 
+					`Nie można wysłać wiadomości - nie znaleziono Twojego konta (${senderUsername}) w systemie wiadomości.\n\nWyślij lub odbierz przynajmniej jedną wiadomość przez panel administratora aby aktywować konto.`
+				);
+				setSending(false);
+				return;
+			}
+
+			console.log('[NowaWiadomosc] ✅ Sender Django user.id:', senderDjangoId);
+
 			// Find Django user.id by username using message history
-			console.log('[NowaWiadomosc] Current user (sender) Django user.id:', user.id);
 			console.log('[NowaWiadomosc] Looking for recipient username:', recipientUsername);
 			
 			const recipientDjangoId = await findDjangoUserIdByUsername(recipientUsername);
@@ -65,12 +89,11 @@ export default function NowaWiadomosc() {
 
 			console.log('[NowaWiadomosc] ✅ Found recipient Django user.id:', recipientDjangoId);
 
-			// Use Django user.id for both sender and recipient
-			const senderDjangoId = user.id; // From JWT - this is Django user.id
-
 			console.log('[NowaWiadomosc] 📨 Sending message with Django user IDs:', {
 				nadawca_django_id: senderDjangoId,
-				odbiorca_django_id: recipientDjangoId
+				nadawca_username: senderUsername,
+				odbiorca_django_id: recipientDjangoId,
+				odbiorca_username: recipientUsername
 			});
 
 			const result = await createMessage({

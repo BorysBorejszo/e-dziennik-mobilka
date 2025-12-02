@@ -78,6 +78,25 @@ export const findDjangoUserIdByUsername = async (username: string): Promise<numb
   return userId;
 };
 
+// Find username by Django user.id (reverse lookup)
+export const findUsernameByDjangoUserId = async (userId: number): Promise<string | null> => {
+  // Build cache if not exists
+  if (!userMappingCache) {
+    await buildUserMapping();
+  }
+  
+  // Reverse search through the map
+  for (const [username, id] of userMappingCache?.entries() || []) {
+    if (id === userId) {
+      console.log('[users] ✅ Found username for Django user.id', userId, ':', username);
+      return username;
+    }
+  }
+  
+  console.log('[users] ❌ No username found for Django user.id', userId);
+  return null;
+};
+
 // GET all users from uczniowie table
 export const getAllUsers = async (): Promise<UserRecord[]> => {
   try {

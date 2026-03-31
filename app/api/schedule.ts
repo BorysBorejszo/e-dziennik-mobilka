@@ -1,3 +1,5 @@
+import auth, { getApiBaseUrl } from './auth';
+
 export type Lesson = {
   id: number;
   subject: string;
@@ -133,6 +135,54 @@ const DB: Record<number, ScheduleResponse> = {
 };
 
 export const getUserSchedule = async (userId: number): Promise<ScheduleResponse> => {
+  // Try remote server first (if available). Fall back to local mock DB if remote fails.
+  try {
+    const endpoints = [
+      `${getApiBaseUrl()}/api/plan/?uczen_id=${userId}`,
+      `${getApiBaseUrl()}/api/plan/?user_id=${userId}`,
+      `${getApiBaseUrl()}/api/plan/?uczen=${userId}`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const res = await auth.authenticatedFetch(url);
+        if (!res || !res.ok) continue;
+        const json = await res.json().catch(() => null);
+        if (!json) continue;
+
+        // Try common shapes: { schedule: [...] } or array of days or results
+        const items: any[] = Array.isArray(json)
+          ? json
+          : Array.isArray(json.schedule)
+          ? json.schedule
+          : Array.isArray(json.results)
+          ? json.results
+          : Array.isArray(json.data)
+          ? json.data
+          : [];
+
+        if (items.length === 0) continue;
+
+        // Map incoming items to DaySchedule when possible
+        const schedule: DaySchedule[] = items.map((d: any) => {
+          const dayIndex = Number(d.dayIndex ?? d.dzien ?? d.day ?? -1);
+          const lessons: Lesson[] = Array.isArray(d.lessons)
+            ? d.lessons
+            : Array.isArray(d.lekcje)
+            ? d.lekcje
+            : [];
+          return { dayIndex: Number.isFinite(dayIndex) ? dayIndex : -1, lessons };
+        });
+
+        return { schedule };
+      } catch (e) {
+        continue;
+      }
+    }
+  } catch (e) {
+    // ignore remote errors and fall back to local DB
+  }
+
   await new Promise((r) => setTimeout(r, 300));
   const data = DB[userId];
   if (!data) return { schedule: [] };

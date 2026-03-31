@@ -11,13 +11,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import authApi, { decodeJWT, getCurrentDjangoUserId, getDjangoIdFromToken } from "../api/auth";
 import {
   convertToDisplayMessage,
   deleteMessage,
+  fetchMessagesByRecipient,
+  fetchMessagesBySender,
   getAllMessages,
   Message,
   updateMessage
 } from "../api/messages";
+import { findDjangoUserIdByUsername, findUsernameByDjangoUserId } from "../api/users";
 import Header from "../components/Header";
 import Avatar from "../components/ui/Avatar";
 import Card from "../components/ui/Card";
@@ -33,6 +37,7 @@ export default function Messages() {
   const [selectedMessage, setSelectedMessage] = React.useState<number | null>(null);
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [tab, setTab] = React.useState<'inbox' | 'sent'>('inbox');
+  const [readFilter, setReadFilter] = React.useState<'all' | 'read' | 'unread'>('all');
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -58,15 +63,131 @@ export default function Messages() {
         return;
       }
       
-      // Debug: Check total messages in database
-      const allMessages = await getAllMessages();
-      console.log('[Messages] === DEBUG: Total messages in database:', allMessages.length);
-      
-      // Filter messages where user is sender OR recipient based on username
-      const userMessages = allMessages.filter(msg => 
-        msg.nadawca_username === user.username || msg.odbiorca_username === user.username
-      );
-      
+      // Resolve Django user.id if possible (API expects Django user PK in odbiorca/nadawca)
+      let attemptsUserId = Number(user.serverId ?? user.id ?? -1);
+      try {
+        // 1) Try extracting id from JWT token payload (many deployments include auth user id in token)
+        const tokenId = await getDjangoIdFromToken();
+        if (tokenId) {
+          attemptsUserId = Number(tokenId);
+          console.log('[Messages] Resolved Django user.id from JWT token payload:', attemptsUserId);
+        } else {
+          // 2) Try to get current user's Django id from profile endpoints
+          const resolved = await getCurrentDjangoUserId();
+          if (resolved) {
+            attemptsUserId = Number(resolved);
+            console.log('[Messages] Resolved Django user.id from profile endpoints:', attemptsUserId);
+          } else if (user.username) {
+            // 3) Fallback: try mapping from message history
+            const djangoId = await findDjangoUserIdByUsername(user.username);
+            if (djangoId) {
+              console.log('[Messages] Resolved Django user.id via message-mapping for username', user.username, ':', djangoId);
+              attemptsUserId = Number(djangoId);
+            } else {
+              console.log('[Messages] No Django mapping found for username', user.username, '- will use serverId/uczen_id fallback', attemptsUserId);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Messages] resolving Django user id failed', e);
+      }
+
+      // Debug: log decoded JWT payload for inspection (helpful for figuring out the correct id field)
+      try {
+        const access = await authApi.getAccessToken();
+        if (access) {
+          const payload = decodeJWT(access);
+          console.debug('[Messages] access token payload sample keys=', Object.keys(payload || {}).slice(0, 20));
+          console.debug('[Messages] access token payload=', JSON.stringify(payload).slice(0, 2000));
+        } else {
+          console.debug('[Messages] no access token available to inspect payload');
+        }
+      } catch (e) {
+        // ignore
+      }
+      let recipientRecords: any[] = [];
+      let senderRecords: any[] = [];
+
+      if (attemptsUserId > 0) {
+        try {
+          recipientRecords = await fetchMessagesByRecipient(attemptsUserId);
+          console.log('[Messages] fetchMessagesByRecipient returned:', recipientRecords.length);
+        } catch (e) {
+          console.warn('[Messages] fetchMessagesByRecipient failed', e);
+        }
+
+        try {
+          senderRecords = await fetchMessagesBySender(attemptsUserId);
+          console.log('[Messages] fetchMessagesBySender returned:', senderRecords.length);
+        } catch (e) {
+          console.warn('[Messages] fetchMessagesBySender failed', e);
+        }
+      }
+
+      // Combine and dedupe
+      const combined = [...recipientRecords, ...senderRecords];
+      const seenIds = new Set<number>();
+      const userMessages: any[] = [];
+      for (const r of combined) {
+        if (!r || typeof r.id === 'undefined') continue;
+        const rid = Number(r.id);
+        if (seenIds.has(rid)) continue;
+        seenIds.add(rid);
+        userMessages.push(r);
+      }
+
+      // Enrich messages with usernames when API returns only IDs (nadawca/odbiorca ints)
+      // Collect unique user ids
+      const unknownUserIds = new Set<number>();
+      for (const m of userMessages) {
+        if (m.nadawca_id && !m.nadawca_username) unknownUserIds.add(Number(m.nadawca_id));
+        if (m.odbiorca_id && !m.odbiorca_username) unknownUserIds.add(Number(m.odbiorca_id));
+      }
+      const idToUsername = new Map<number, string>();
+      for (const uid of Array.from(unknownUserIds)) {
+        try {
+          const uname = await findUsernameByDjangoUserId(uid);
+          if (uname) idToUsername.set(uid, uname);
+        } catch (e) {
+          console.warn('[Messages] findUsernameByDjangoUserId failed for', uid, e);
+        }
+      }
+      // Apply username mapping to messages
+      for (const m of userMessages) {
+        if (!m.nadawca_username && m.nadawca_id) m.nadawca_username = idToUsername.get(Number(m.nadawca_id)) ?? undefined;
+        if (!m.odbiorca_username && m.odbiorca_id) m.odbiorca_username = idToUsername.get(Number(m.odbiorca_id)) ?? undefined;
+      }
+
+      // If still empty, fallback to local getAllMessages and filter by username/id
+      if (userMessages.length === 0) {
+        const allMessages = await getAllMessages();
+        console.log('[Messages] getAllMessages returned:', allMessages.length);
+        for (const msg of allMessages) {
+          const mAny: any = msg as any;
+          const nadawcaIds = [mAny.nadawca, mAny.nadawca_id, mAny.sender_id, mAny.from_id].map((v: any) => (typeof v !== 'undefined' && v !== null) ? Number(v) : null);
+          const odbiorcaIds = [mAny.odbiorca, mAny.odbiorca_id, mAny.recipient_id, mAny.to_id].map((v: any) => (typeof v !== 'undefined' && v !== null) ? Number(v) : null);
+
+          const matchesUsername = (mAny.nadawca_username === user.username) || (mAny.odbiorca_username === user.username);
+          const matchesId = nadawcaIds.includes(attemptsUserId) || odbiorcaIds.includes(attemptsUserId);
+
+          if (matchesUsername || matchesId) {
+            // Normalize into MessageRecord-like shape expected by convertToDisplayMessage
+            const normalized = {
+              id: Number(mAny.id ?? mAny.pk ?? 0),
+              nadawca_id: Number(mAny.nadawca ?? mAny.nadawca_id ?? mAny.sender_id ?? null),
+              nadawca_username: mAny.nadawca_username ?? mAny.nadawca_name ?? mAny.sender_name ?? undefined,
+              odbiorca_id: Number(mAny.odbiorca ?? mAny.odbiorca_id ?? mAny.recipient_id ?? null),
+              odbiorca_username: mAny.odbiorca_username ?? mAny.recipient_name ?? undefined,
+              temat: mAny.temat ?? mAny.subject ?? mAny.title ?? '',
+              tresc: mAny.tresc ?? mAny.content ?? mAny.body ?? '',
+              data_wyslania: mAny.data_wyslania ?? mAny.created_at ?? mAny.time ?? mAny.data ?? '',
+              przeczytana: typeof mAny.przeczytana === 'boolean' ? mAny.przeczytana : !!mAny.przeczytana,
+            } as any;
+            userMessages.push(normalized);
+          }
+        }
+      }
+
       console.log('[Messages] Messages for user', user.username, ':', userMessages.length);
       
       if (userMessages.length > 0) {
@@ -76,22 +197,23 @@ export default function Messages() {
         });
       }
       
-      // Convert to display format - we need to find user's actual Django user_id from the messages
-      // The user's Django user_id is either nadawca_id or odbiorca_id where username matches
-      let userDjangoId: number | undefined;
-      for (const msg of userMessages) {
-        if (msg.nadawca_username === user.username) {
-          userDjangoId = msg.nadawca_id;
-          break;
-        } else if (msg.odbiorca_username === user.username) {
-          userDjangoId = msg.odbiorca_id;
-          break;
+      // Convert to display format - attempt to detect Django user id from serverId or messages
+      let userDjangoId: number | undefined = attemptsUserId as number | undefined;
+      if (!userDjangoId) {
+        for (const msg of userMessages) {
+          if (msg.nadawca_username === user.username) {
+            userDjangoId = msg.nadawca_id;
+            break;
+          } else if (msg.odbiorca_username === user.username) {
+            userDjangoId = msg.odbiorca_id;
+            break;
+          }
         }
       }
-      
+
       console.log('[Messages] Detected Django user_id for', user.username, ':', userDjangoId);
-      
-      const displayMessages = userMessages.map(r => convertToDisplayMessage(r, userDjangoId));
+
+  const displayMessages = userMessages.map((r: any) => convertToDisplayMessage(r, userDjangoId));
       console.log('[Messages] After conversion to display format:', displayMessages.length);
       
       setMessages(displayMessages);
@@ -127,33 +249,32 @@ export default function Messages() {
   console.log('[Messages] Total messages to filter:', messages.length);
   
   const received = messages.filter(m => {
-    // Wiadomość odebrana: odbiorca to obecny użytkownik (porównujemy przez username w raw)
-    if (!m.raw || !user?.username) return false;
-    const isReceived = m.raw.odbiorca_username === user.username;
-    if (isReceived) {
-      console.log('[Messages] ✓ RECEIVED message:', { 
-        id: m.id, 
-        subject: m.subject, 
-        from: m.raw.nadawca_username,
-        to: m.raw.odbiorca_username
-      });
-    }
-    return isReceived;
+    // Wiadomość odebrana: odbiorca to obecny użytkownik (porównujemy przez username lub odbiorca_id)
+    if (!m.raw || !user) return false;
+    const byUsername = user.username ? (m.raw.odbiorca_username === user.username) : false;
+    const byId = (typeof m.raw.odbiorca_id !== 'undefined' && (user.serverId ?? user.id)) ? Number(m.raw.odbiorca_id) === Number(user.serverId ?? user.id) : false;
+    const isReceived = byUsername || byId;
+    if (!isReceived) return false;
+
+    // Apply read/unread filter if set
+    if (readFilter === 'unread' && !m.unread) return false;
+    if (readFilter === 'read' && m.unread) return false;
+
+    console.log('[Messages] ✓ RECEIVED message:', { id: m.id, subject: m.subject, from: m.raw.nadawca_username, to: m.raw.odbiorca_username });
+    return true;
   });
 
   const sent = messages.filter(m => {
-    // Wiadomość wysłana: nadawca to obecny użytkownik (porównujemy przez username w raw)
-    if (!m.raw || !user?.username) return false;
-    const isSent = m.raw.nadawca_username === user.username;
-    if (isSent) {
-      console.log('[Messages] ✓ SENT message:', { 
-        id: m.id, 
-        subject: m.subject, 
-        from: m.raw.nadawca_username,
-        to: m.raw.odbiorca_username
-      });
-    }
-    return isSent;
+    // Wiadomość wysłana: nadawca to obecny użytkownik (porównujemy przez username lub nadawca_id)
+    if (!m.raw || !user) return false;
+    const byUsername = user.username ? (m.raw.nadawca_username === user.username) : false;
+    const byId = (typeof m.raw.nadawca_id !== 'undefined' && (user.serverId ?? user.id)) ? Number(m.raw.nadawca_id) === Number(user.serverId ?? user.id) : false;
+    const isSent = byUsername || byId;
+    if (!isSent) return false;
+
+    // Sent tab shows all sent messages regardless of read filter
+    console.log('[Messages] ✓ SENT message:', { id: m.id, subject: m.subject, from: m.raw.nadawca_username, to: m.raw.odbiorca_username });
+    return true;
   });
 
   console.log('[Messages] ===== FILTER RESULTS =====');
@@ -240,6 +361,32 @@ export default function Messages() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Read / Unread filter (only for inbox) */}
+        {tab === 'inbox' && (
+          <View className="px-4 mt-3">
+            <View className="flex-row rounded-full bg-gray-100 dark:bg-neutral-800 p-1">
+              <TouchableOpacity
+                onPress={() => setReadFilter('all')}
+                className={`flex-1 py-2 rounded-full items-center ${readFilter === 'all' ? 'bg-white dark:bg-neutral-900' : ''}`}
+              >
+                <Text className={`font-semibold ${readFilter === 'all' ? 'text-black dark:text-white' : 'text-gray-600 dark:text-neutral-300'}`}>Wszystkie</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setReadFilter('unread')}
+                className={`flex-1 py-2 rounded-full items-center ${readFilter === 'unread' ? 'bg-white dark:bg-neutral-900' : ''}`}
+              >
+                <Text className={`font-semibold ${readFilter === 'unread' ? 'text-black dark:text-white' : 'text-gray-600 dark:text-neutral-300'}`}>Nieodczytane</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setReadFilter('read')}
+                className={`flex-1 py-2 rounded-full items-center ${readFilter === 'read' ? 'bg-white dark:bg-neutral-900' : ''}`}
+              >
+                <Text className={`font-semibold ${readFilter === 'read' ? 'text-black dark:text-white' : 'text-gray-600 dark:text-neutral-300'}`}>Odczytane</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <View className={`${bg} flex-row items-center rounded-2xl h-14 px-4 py-2 mx-4 mt-4 border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
           <Ionicons name="search-outline" size={20} color="gray" />

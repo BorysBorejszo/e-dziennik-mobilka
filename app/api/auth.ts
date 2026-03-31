@@ -67,7 +67,8 @@ if (typeof global.atob === 'undefined') {
 }
 
 // default to the remote dziennik server
-let BASE_URL = 'http://dziennik.polandcentral.cloudapp.azure.com';
+// default to the remote dziennik server (prefer HTTPS)
+let BASE_URL = 'https://dziennik.polandcentral.cloudapp.azure.com';
 const ACCESS_KEY = '@e-dziennik:access';
 const REFRESH_KEY = '@e-dziennik:refresh';
 
@@ -75,6 +76,8 @@ export const setApiBaseUrl = (url: string) => {
   // Remove trailing slash for consistency
   BASE_URL = url.replace(/\/$/, '');
 };
+
+export const getApiBaseUrl = () => BASE_URL;
 
 /**
  * Send credentials to the server and return access/refresh tokens.
@@ -159,6 +162,36 @@ export const getAccessToken = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(ACCESS_KEY);
   } catch (e) {
+    return null;
+  }
+};
+
+// Try to extract a Django user id from the stored access token payload.
+export const getDjangoIdFromToken = async (): Promise<number | null> => {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const payload = decodeJWT(token);
+    if (!payload || typeof payload !== 'object') return null;
+
+    // Candidate keys that might hold Django user id in different deployments
+    const candidates = ['user_id', 'id', 'uczen_id', 'django_user_id', 'auth_user_id', 'sub', 'pk', 'user'];
+    for (const key of candidates) {
+      if (key in payload) {
+        const val = payload[key];
+        const num = Number(val);
+        if (!Number.isNaN(num) && num > 0) return num;
+        // payload.user may be an object
+        if (key === 'user' && typeof val === 'object' && val !== null) {
+          const inner = Number(val.id ?? val.user_id ?? val.pk ?? null);
+          if (!Number.isNaN(inner) && inner > 0) return inner;
+        }
+      }
+    }
+    return null;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.debug('[auth] getDjangoIdFromToken failed', e);
     return null;
   }
 };
@@ -266,6 +299,7 @@ export const authenticatedFetch = async (input: RequestInfo, init: RequestInit =
 export default {
   login,
   setApiBaseUrl,
+  getApiBaseUrl,
   storeTokens,
   getAccessToken,
   getRefreshToken,
@@ -273,4 +307,40 @@ export default {
   refreshAuth,
   authenticatedFetch,
   register,
+};
+
+// Attempt to resolve the current user's Django user.id by querying common profile endpoints.
+// Returns numeric id when found or null.
+export const getCurrentDjangoUserId = async (): Promise<number | null> => {
+  const endpoints = [
+    '/api/auth/user/',
+    '/api/auth/me/',
+    '/api/users/me/',
+    '/api/user/',
+    '/api/profile/',
+    '/api/uzytkownicy/me/',
+    '/api/uczniowie/me/',
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const url = ep.startsWith('http') ? ep : `${getApiBaseUrl().replace(/\/$/, '')}${ep}`;
+      const res = await authenticatedFetch(url);
+      if (!res || !res.ok) continue;
+      const json = await res.json().catch(() => null);
+      if (!json) continue;
+
+      // candidate shapes
+      const candidate = json.user ?? json.uczen ?? json;
+      const id = Number(candidate.user_id ?? candidate.id ?? candidate.pk ?? candidate.uczen_id ?? candidate.django_user_id ?? null);
+      if (id && !Number.isNaN(id)) return id;
+    } catch (e) {
+      // ignore and try next
+      // eslint-disable-next-line no-console
+      console.debug('[auth] getCurrentDjangoUserId try failed for', ep, e);
+      continue;
+    }
+  }
+
+  return null;
 };

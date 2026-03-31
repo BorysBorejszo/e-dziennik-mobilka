@@ -1,5 +1,6 @@
 // User API functions
 
+import auth, { getApiBaseUrl } from './auth';
 import { getAllMessages } from './messages';
 
 export type UserRecord = {
@@ -18,13 +19,12 @@ export type DjangoUserMapping = {
   uczniowie_id?: number;
 };
 
-const API_BASE = 'http://dziennik.polandcentral.cloudapp.azure.com';
 const ADMIN_KEY = '7KU2mc6ZxflGYE5QqjmZ7wcN0OI3rX1p';
 
-const headers = {
+const headers = () => ({
   'ADMIN-KEY': ADMIN_KEY,
   'Content-Type': 'application/json',
-};
+});
 
 // Cache for username -> Django user.id mapping
 let userMappingCache: Map<string, number> | null = null;
@@ -40,11 +40,11 @@ export const buildUserMapping = async (): Promise<Map<string, number>> => {
     allMessages.forEach((msg: any) => {
       // Add sender mapping
       if (msg.nadawca_username && msg.nadawca_id) {
-        mapping.set(msg.nadawca_username, msg.nadawca_id);
+        mapping.set(String(msg.nadawca_username).toLowerCase(), msg.nadawca_id);
       }
       // Add recipient mapping
       if (msg.odbiorca_username && msg.odbiorca_id) {
-        mapping.set(msg.odbiorca_username, msg.odbiorca_id);
+        mapping.set(String(msg.odbiorca_username).toLowerCase(), msg.odbiorca_id);
       }
     });
     
@@ -100,7 +100,7 @@ export const findUsernameByDjangoUserId = async (userId: number): Promise<string
 // GET all users from uczniowie table
 export const getAllUsers = async (): Promise<UserRecord[]> => {
   try {
-    const response = await fetch(`${API_BASE}/api/uczniowie/`, { headers });
+    const response = await auth.authenticatedFetch(`${getApiBaseUrl()}/api/uczniowie/`, { headers: headers() });
     if (!response.ok) {
       console.error('[users] Failed to fetch users:', response.status);
       return [];

@@ -67,3 +67,6 @@ const PasswordInput = forwardRef<TextInput, Props>(({ value, onChangeText, place
 });
 
 export default PasswordInput;
+
+// Add display name for better React DevTools and to satisfy eslint react/display-name
+PasswordInput.displayName = 'PasswordInput';

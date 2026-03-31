@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import {
-  Modal,
-  RefreshControl,
-  Text,
-  TouchableOpacity,
-  View,
+    Modal,
+    RefreshControl,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import {
-  AttendanceEntry,
-  AttendanceRecord,
-  getAttendanceById,
-  getUserAttendance,
+    AttendanceEntry,
+    AttendanceRecord,
+    getAttendanceById,
+    getUserAttendance,
 } from "../api/attendance";
 import Header from "../components/Header";
 import Card from "../components/ui/Card";
@@ -19,7 +19,7 @@ import EmptyState from "../components/ui/EmptyState";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
-export default function attendance() {
+export default function Attendance() {
     const { theme } = useTheme();
     const { user } = useUser();
     const [showCompact, setShowCompact] = useState(false);
@@ -69,8 +69,12 @@ export default function attendance() {
             // Dokładne dopasowanie statusów
             if (status === "Obecny") present++;
             else if (status === "Spóźniony") late++;
-            else if (status === "Usprawiedliwiony") excused++;
-            else if (status === "Nieobecny") absent++;
+            else if (status === "Usprawiedliwiony" || status === "Zwolnienie") {
+                // Usprawiedliwienia (including zwolnienia) should be displayed
+                // but counted as absence for the attendance percentage.
+                excused++;
+                absent++;
+            } else if (status === "Nieobecny") absent++;
             else {
                 console.warn("[attendance] Unknown status:", status);
             }
@@ -101,9 +105,11 @@ export default function attendance() {
 
     const fetchData = async () => {
         if (!user) return;
+        const studentId = (user.serverId ?? user.id) as number | undefined;
+        if (!studentId) return;
         setRefreshing(true);
         try {
-            const res = await getUserAttendance(user.id);
+            const res = await getUserAttendance(studentId);
             // Sortuj od najnowszej do najstarszej
             const sorted = res.recent.sort((a, b) => {
                 const dateA = new Date(a.date).getTime();
@@ -140,7 +146,7 @@ export default function attendance() {
     useEffect(() => {
         fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id]);
+    }, [user?.id, user?.serverId]);
 
     const statusColor = (s: AttendanceEntry["status"]) =>
         s === "Obecny"
@@ -151,7 +157,7 @@ export default function attendance() {
             ? theme === "dark"
                 ? "text-amber-400"
                 : "text-amber-600"
-            : s === "Usprawiedliwiony"
+            : s === "Usprawiedliwiony" || s === "Zwolnienie"
             ? theme === "dark"
                 ? "text-blue-400"
                 : "text-blue-600"
@@ -391,16 +397,13 @@ export default function attendance() {
                                             alignItems: "center",
                                             justifyContent: "center",
                                             backgroundColor:
-                                                selectedEntry.status ===
-                                                "Obecny"
-                                                    ? "#16A34A"
-                                                    : selectedEntry.status ===
-                                                      "Spóźniony"
-                                                    ? "#F59E0B"
-                                                    : selectedEntry.status ===
-                                                      "Usprawiedliwiony"
-                                                    ? "#3B82F6"
-                                                    : "#EF4444",
+                                                                                                    (selectedEntry.status === "Obecny"
+                                                                                                            ? "#16A34A"
+                                                                                                            : selectedEntry.status === "Spóźniony"
+                                                                                                            ? "#F59E0B"
+                                                                                                            : selectedEntry.status === "Usprawiedliwiony" || selectedEntry.status === "Zwolnienie"
+                                                                                                            ? "#3B82F6"
+                                                                                                            : "#EF4444"),
                                         }}
                                     >
                                         <Text
@@ -410,15 +413,15 @@ export default function attendance() {
                                                 fontWeight: "800",
                                             }}
                                         >
-                                            {selectedEntry.status === "Obecny"
-                                                ? "O"
-                                                : selectedEntry.status ===
-                                                  "Spóźniony"
-                                                ? "S"
-                                                : selectedEntry.status ===
-                                                  "Usprawiedliwiony"
-                                                ? "U"
-                                                : "N"}
+                                                                                        {selectedEntry.status === "Obecny"
+                                                                                                ? "O"
+                                                                                                : selectedEntry.status === "Spóźniony"
+                                                                                                ? "S"
+                                                                                                : selectedEntry.status === "Zwolnienie"
+                                                                                                ? "Z"
+                                                                                                : selectedEntry.status === "Usprawiedliwiony"
+                                                                                                ? "U"
+                                                                                                : "N"}
                                         </Text>
                                     </View>
                                     <View style={{ flex: 1 }}>
@@ -488,16 +491,15 @@ export default function attendance() {
                                         <Text
                                             style={{
                                                 color:
-                                                    selectedEntry.status ===
-                                                    "Obecny"
-                                                        ? "#16A34A"
-                                                        : selectedEntry.status ===
-                                                          "Spóźniony"
-                                                        ? "#F59E0B"
-                                                        : selectedEntry.status ===
-                                                          "Usprawiedliwiony"
-                                                        ? "#3B82F6"
-                                                        : "#EF4444",
+                                                                                                            selectedEntry.status === "Obecny"
+                                                                                                                    ? "#16A34A"
+                                                                                                                    : selectedEntry.status === "Spóźniony"
+                                                                                                                    ? "#F59E0B"
+                                                                                                                    : selectedEntry.status === "Zwolnienie"
+                                                                                                                    ? "#3B82F6"
+                                                                                                                    : selectedEntry.status === "Usprawiedliwiony"
+                                                                                                                    ? "#3B82F6"
+                                                                                                                    : "#EF4444",
                                                 fontWeight: "700",
                                             }}
                                         >

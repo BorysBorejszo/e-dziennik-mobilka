@@ -1,9 +1,14 @@
+import auth, { getApiBaseUrl } from './auth';
+
 export type GradeItem = {
   value: number; // numeric value used for averages (1..6)
   label?: string; // display label like "5+", "4-" or "5"
   weight?: number; // default 1 (internal, not shown in UI)
   date: string; // ISO date
   category?: string; // e.g., "Kartkówka", "Sprawdzian"
+  // Whether this grade should be included when computing averages. The server
+  // may provide this as `czy_do_sredniej` or similar; default is true.
+  countForAverage?: boolean;
 };
 
 export type SubjectGrades = {
@@ -16,8 +21,6 @@ export type GradesResponse = {
   behavior?: SubjectGrades; // Zachowanie jako specjalna kategoria
 };
 
-// Server base
-const BASE = 'http://dziennik.polandcentral.cloudapp.azure.com';
 const DEFAULT_ADMIN_KEY = '7KU2mc6ZxflGYE5QqjmZ7wcN0OI3rX1p';
 
 // Try to resolve numeric subject IDs to human-readable names by probing likely subject endpoints.
@@ -26,13 +29,13 @@ const resolveSubjectNames = async (ids: number[]): Promise<Record<number, string
   for (const id of ids) out[id] = null;
 
   const patterns: Array<(id: number) => string> = [
-    (i) => `${BASE}/api/przedmioty/${i}/`,
-    (i) => `${BASE}/api/przedmiot/${i}/`,
-    (i) => `${BASE}/api/przedmioty/?id=${i}`,
-    (i) => `${BASE}/api/przedmioty/?pk=${i}`,
-    (i) => `${BASE}/api/przedmioty/?przedmiot_id=${i}`,
-    (i) => `${BASE}/api/przedmioty/`,
-    (i) => `${BASE}/api/przedmiot/`,
+    (i) => `${getApiBaseUrl()}/api/przedmioty/${i}/`,
+    (i) => `${getApiBaseUrl()}/api/przedmiot/${i}/`,
+    (i) => `${getApiBaseUrl()}/api/przedmioty/?id=${i}`,
+    (i) => `${getApiBaseUrl()}/api/przedmioty/?pk=${i}`,
+    (i) => `${getApiBaseUrl()}/api/przedmioty/?przedmiot_id=${i}`,
+    (i) => `${getApiBaseUrl()}/api/przedmioty/`,
+    (i) => `${getApiBaseUrl()}/api/przedmiot/`,
   ];
 
   const extractName = (obj: any) => obj?.nazwa ?? obj?.name ?? obj?.title ?? obj?.label ?? null;
@@ -43,7 +46,7 @@ const resolveSubjectNames = async (ids: number[]): Promise<Record<number, string
     for (const makeUrl of patterns) {
       const url = makeUrl(id);
       try {
-        const res = await fetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+        const res = await auth.authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
         if (!res || !res.ok) continue;
         let json: any = null;
         try { json = await res.json(); } catch (e) { continue; }
@@ -72,7 +75,7 @@ const resolveSubjectNames = async (ids: number[]): Promise<Record<number, string
               break;
             }
           }
-          // or it might return { results: { ... } }
+          // or it might return { results: [...] }
           const maybeList = extractList(json);
           if (Array.isArray(maybeList)) {
             const f = maybeList.find((it: any) => Number(it.id ?? it.pk ?? it.przedmiot_id ?? -1) === id);
@@ -102,11 +105,11 @@ const resolveSubjectNames = async (ids: number[]): Promise<Record<number, string
 const findSubjectIdByName = async (name: string): Promise<number | null> => {
   if (!name) return null;
   const patterns: Array<(q: string) => string> = [
-    (q) => `${BASE}/api/przedmioty/?search=${encodeURIComponent(q)}`,
-    (q) => `${BASE}/api/przedmioty/?nazwa=${encodeURIComponent(q)}`,
-    (q) => `${BASE}/api/przedmioty/?name=${encodeURIComponent(q)}`,
-    (q) => `${BASE}/api/przedmioty/`,
-    (q) => `${BASE}/api/przedmiot/`,
+    (q) => `${getApiBaseUrl()}/api/przedmioty/?search=${encodeURIComponent(q)}`,
+    (q) => `${getApiBaseUrl()}/api/przedmioty/?nazwa=${encodeURIComponent(q)}`,
+    (q) => `${getApiBaseUrl()}/api/przedmioty/?name=${encodeURIComponent(q)}`,
+    (q) => `${getApiBaseUrl()}/api/przedmioty/`,
+    (q) => `${getApiBaseUrl()}/api/przedmiot/`,
   ];
 
   const matchName = (obj: any, target: string) => {
@@ -118,7 +121,7 @@ const findSubjectIdByName = async (name: string): Promise<number | null> => {
   for (const makeUrl of patterns) {
     const url = makeUrl(name);
     try {
-      const res = await fetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const res = await auth.authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
       if (!res || !res.ok) continue;
       const json = await res.json().catch(() => null);
       const list = extractList(json) ?? (Array.isArray(json) ? json : null);
@@ -184,7 +187,7 @@ const normalizeDate = (raw: any): string => {
 
 // List subjects (przedmioty) - used by UI when creating grades so user can pick from available subjects
 export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string }>> => {
-  const startUrl = `${BASE}/api/przedmioty/`;
+  const startUrl = `${getApiBaseUrl()}/api/przedmioty/`;
   try {
     const accumulated: any[] = [];
     let nextUrl: string | null = startUrl;
@@ -196,7 +199,7 @@ export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string 
       if (seenUrls.has(nextUrl)) break;
       seenUrls.add(nextUrl);
 
-  const res: Response = await fetch(nextUrl, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const res: Response = await auth.authenticatedFetch(nextUrl, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
   if (!res || !res.ok) break;
   const json: any = await res.json().catch(() => null);
 
@@ -244,7 +247,19 @@ const mapServerToGrade = (it: any): GradeItem => {
   const rawDate = it.data_wystawienia ?? it.data_wystawienia_oceny ?? it.data ?? it.date ?? it.created_at ?? it.timestamp ?? it.time ?? '';
   const date = normalizeDate(rawDate);
   const category = it.kategoria ?? it.kategoria_nazwa ?? it.typ ?? it.category ?? undefined;
-  return { value, label, weight, date, category };
+  // detect server flag which indicates whether grade counts towards average
+  const countFlag = (() => {
+    if (typeof it.czy_do_sredniej === 'boolean') return it.czy_do_sredniej;
+    if (typeof it.czyDoSredniej === 'boolean') return it.czyDoSredniej;
+    if (typeof it.do_sredniej === 'boolean') return it.do_sredniej;
+    if (typeof it.is_counted === 'boolean') return it.is_counted;
+    if (typeof it.count_for_average === 'boolean') return it.count_for_average;
+    // sometimes servers send 0/1
+    const num = Number(it.czy_do_sredniej ?? it.czyDoSredniej ?? it.do_sredniej ?? it.is_counted ?? it.count_for_average ?? NaN);
+    if (!Number.isNaN(num)) return Boolean(num);
+    return true;
+  })();
+  return { value, label, weight, date, category, countForAverage: countFlag };
 };
 
 /**
@@ -253,10 +268,10 @@ const mapServerToGrade = (it: any): GradeItem => {
  */
 export const getUserGrades = async (userId: number): Promise<GradesResponse> => {
   const endpoints = [
-    `${BASE}/api/oceny/?uczen_id=${userId}`,
-    `${BASE}/api/oceny/?user_id=${userId}`,
-    `${BASE}/api/oceny-okresowe/?uczen_id=${userId}`,
-    `${BASE}/api/oceny-koncowe/?uczen_id=${userId}`,
+    `${getApiBaseUrl()}/api/oceny/?uczen_id=${userId}`,
+    `${getApiBaseUrl()}/api/oceny/?user_id=${userId}`,
+    `${getApiBaseUrl()}/api/oceny-okresowe/?uczen_id=${userId}`,
+    `${getApiBaseUrl()}/api/oceny-koncowe/?uczen_id=${userId}`,
   ];
 
   // Debug: log which userId we're querying
@@ -267,7 +282,7 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
 
   for (const url of endpoints) {
     try {
-      const res = await fetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+      const res = await auth.authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
       let json: any = null;
       try { json = await res.json(); } catch (e) { /* ignore parse errors */ }
       // debug
@@ -413,7 +428,7 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
   // behavior category if present. This creates a clear, dedicated category for behavior points.
   let behaviorFromPoints: SubjectGrades | undefined = undefined;
   try {
-    const res = await fetch(`${BASE}/api/zachowanie-punkty/?user_id=${userId}`, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const res = await auth.authenticatedFetch(`${getApiBaseUrl()}/api/zachowanie-punkty/?user_id=${userId}`, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
     if (res && res.ok) {
       const json = await res.json().catch(() => null);
       const list = extractList(json) ?? (Array.isArray(json) ? json : (json?.results ?? null)) ?? [];
@@ -461,11 +476,11 @@ export const createGrade = async (
   payload: GradeCreatePayload & { type?: 'standard' | 'periodic' | 'final'; okres?: string; rok_szkolny?: string }
 ) => {
   const type = payload.type ?? 'standard';
-  const url = type === 'standard' ? `${BASE}/api/oceny/` : type === 'periodic' ? `${BASE}/api/oceny-okresowe/` : `${BASE}/api/oceny-koncowe/`;
+  const url = type === 'standard' ? `${getApiBaseUrl()}/api/oceny/` : type === 'periodic' ? `${getApiBaseUrl()}/api/oceny-okresowe/` : `${getApiBaseUrl()}/api/oceny-koncowe/`;
 
   // OPTIONS probe for debugging (ignore failures)
   try {
-    const opt = await fetch(url, { method: 'OPTIONS', headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const opt = await auth.authenticatedFetch(url, { method: 'OPTIONS', headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
     if (opt.ok) {
       const meta = await opt.json().catch(() => null);
       // eslint-disable-next-line no-console
@@ -521,7 +536,7 @@ export const createGrade = async (
     const pl = { ...payload, subjectId: resolvedSubjectId ?? payload.subjectId };
     const bodyCandidate = makeBody(v, pl);
     try {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(bodyCandidate) });
+  const res = await auth.authenticatedFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(bodyCandidate) });
       const text = await res.text().catch(() => '');
       let json: any = null;
       try { json = text ? JSON.parse(text) : null; } catch (e) { json = null; }
@@ -550,7 +565,7 @@ export const createGrade = async (
 
 /** Create behavior points entry (zachowanie-punkty) */
 export const createBehaviorPoints = async (payload: { uczen_id: number; punkty: number; opis?: string; nauczyciel_wpisujacy_id?: number }) => {
-  const url = `${BASE}/api/zachowanie-punkty/`;
+  const url = `${getApiBaseUrl()}/api/zachowanie-punkty/`;
   const body = {
     uczen_id: payload.uczen_id,
     punkty: payload.punkty,
@@ -558,7 +573,7 @@ export const createBehaviorPoints = async (payload: { uczen_id: number; punkty: 
     nauczyciel_wpisujacy_id: payload.nauczyciel_wpisujacy_id ?? null,
   };
 
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(body) });
+  const res = await auth.authenticatedFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(body) });
   const text = await res.text().catch(() => '');
   let json: any = null;
   try { json = text ? JSON.parse(text) : null; } catch (e) { json = null; }
@@ -570,6 +585,11 @@ export const createBehaviorPoints = async (payload: { uczen_id: number; punkty: 
 
 export const calculateWeightedAverage = (items: GradeItem[]): number | null => {
   if (!items || items.length === 0) return null;
+  // Only consider grades that are marked to count for the average. If the
+  // server provides `czy_do_sredniej` (or variants) we mapped it to
+  // `countForAverage` on each GradeItem.
+  const considered = items.filter((g) => g.countForAverage !== false);
+  if (!considered || considered.length === 0) return null;
   const normalized = (g: GradeItem) => {
     // interpret +/-: plus adds 0.5, minus subtracts 0.25 (clamped 1..6)
     let base = g.value;
@@ -582,7 +602,7 @@ export const calculateWeightedAverage = (items: GradeItem[]): number | null => {
 
   let sum = 0;
   let wsum = 0;
-  for (const g of items) {
+  for (const g of considered) {
     const w = g.weight ?? 1;
     sum += normalized(g) * w;
     wsum += w;

@@ -52,6 +52,52 @@ const headers = () => ({
   "Content-Type": "application/json",
 });
 
+const userNameCache = new Map<number, string>();
+
+const extractReadableUserName = (payload: any): string | null => {
+  if (!payload) return null;
+  const candidate = payload.user ?? payload.uczen ?? payload.nauczyciel ?? payload.rodzic ?? payload;
+  const first = candidate.first_name ?? candidate.firstName ?? null;
+  const last = candidate.last_name ?? candidate.lastName ?? null;
+  const username = candidate.username ?? payload.username ?? null;
+
+  if (first || last) return `${first ?? ""} ${last ?? ""}`.trim();
+  if (username) return String(username);
+  return null;
+};
+
+const resolveUserDisplayName = async (djangoUserId: number): Promise<string | null> => {
+  if (!djangoUserId || djangoUserId <= 0) return null;
+  if (userNameCache.has(djangoUserId)) return userNameCache.get(djangoUserId) ?? null;
+
+  const base = getApiBaseUrl().replace(/\/$/, "");
+  const candidates = [
+    `${base}/api/users/${djangoUserId}/`,
+    `${base}/api/uczniowie/?user_id=${djangoUserId}`,
+    `${base}/api/nauczyciele/?user_id=${djangoUserId}`,
+    `${base}/api/rodzice/?user_id=${djangoUserId}`,
+  ];
+
+  for (const url of candidates) {
+    try {
+      const res = await auth.authenticatedFetch(url, { headers: headers() as any });
+      if (!res || !res.ok) continue;
+      const json = await res.json().catch(() => null);
+      if (!json) continue;
+      const row = Array.isArray(json) ? json[0] : Array.isArray(json.results) ? json.results[0] : json;
+      const label = extractReadableUserName(row);
+      if (label) {
+        userNameCache.set(djangoUserId, label);
+        return label;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
+
 const DB: Record<number, MessagesResponse> = {
   1: {
     // Jan Kowalski - messages
@@ -505,7 +551,7 @@ export const fetchMessagesByRecipient = async (
     }
 
     // Normalize API fields to MessageRecord shape
-    return items.map(
+    const normalized = items.map(
       (m: any) =>
         ({
           id: Number(m.id ?? m.pk ?? 0),
@@ -527,6 +573,28 @@ export const fetchMessagesByRecipient = async (
               : !!m.przeczytana,
         }) as MessageRecord,
     );
+
+    const senderIds = Array.from(
+      new Set(
+        normalized
+          .map((item) => Number(item.nadawca_id))
+          .filter((id) => Number.isFinite(id) && id > 0),
+      ),
+    );
+    await Promise.all(
+      senderIds.map(async (senderId) => {
+        const name = await resolveUserDisplayName(senderId);
+        if (name) userNameCache.set(senderId, name);
+      }),
+    );
+
+    return normalized.map((item) => ({
+      ...item,
+      nadawca_username:
+        item.nadawca_username ??
+        userNameCache.get(Number(item.nadawca_id)) ??
+        item.nadawca_username,
+    }));
   } catch (e) {
     console.error("[messages] fetchMessagesByRecipient error", e);
     return [];
@@ -624,7 +692,7 @@ export const fetchMessagesBySender = async (
     }
 
     // Normalize API fields to MessageRecord shape
-    return items.map(
+    const normalized = items.map(
       (m: any) =>
         ({
           id: Number(m.id ?? m.pk ?? 0),
@@ -646,6 +714,28 @@ export const fetchMessagesBySender = async (
               : !!m.przeczytana,
         }) as MessageRecord,
     );
+
+    const recipientIds = Array.from(
+      new Set(
+        normalized
+          .map((item) => Number(item.odbiorca_id))
+          .filter((id) => Number.isFinite(id) && id > 0),
+      ),
+    );
+    await Promise.all(
+      recipientIds.map(async (recipient) => {
+        const name = await resolveUserDisplayName(recipient);
+        if (name) userNameCache.set(recipient, name);
+      }),
+    );
+
+    return normalized.map((item) => ({
+      ...item,
+      odbiorca_username:
+        item.odbiorca_username ??
+        userNameCache.get(Number(item.odbiorca_id)) ??
+        item.odbiorca_username,
+    }));
   } catch (e) {
     console.error("[messages] fetchMessagesBySender error", e);
     return [];
@@ -751,9 +841,11 @@ export const convertToDisplayMessage = (
   currentUserId?: number,
 ): Message => {
   const isSender = record.nadawca_id === currentUserId;
-  // Use nadawca_username if available, otherwise fall back to generic name
-  const senderName =
-    record.nadawca_username || `Użytkownik ${record.nadawca_id}`;
+  // For sent messages display recipient name, for inbox display sender name.
+  const counterpartyName = isSender
+    ? record.odbiorca_username || `Użytkownik ${record.odbiorca_id}`
+    : record.nadawca_username || `Użytkownik ${record.nadawca_id}`;
+  const senderName = counterpartyName;
   const avatar = senderName[0].toUpperCase();
   const preview = record.tresc.slice(0, 120);
 

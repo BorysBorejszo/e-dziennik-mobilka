@@ -90,6 +90,14 @@ const formatTimeRange = (from?: string, to?: string): string => {
     return "—";
 };
 
+const toDisplayName = (entity: any): string | null => {
+    if (!entity) return null;
+    const first = entity.first_name ?? entity.firstName ?? null;
+    const last = entity.last_name ?? entity.lastName ?? null;
+    if (first || last) return `${first ?? ""} ${last ?? ""}`.trim();
+    return entity.username ?? entity.name ?? entity.nazwa ?? null;
+};
+
 export const getUserSchedule = async (userId: number): Promise<ScheduleResponse> => {
     const base = getApiBaseUrl();
     const classId = await resolveClassIdForStudent(userId);
@@ -100,9 +108,20 @@ export const getUserSchedule = async (userId: number): Promise<ScheduleResponse>
     if (plans.length === 0) return { schedule: [] };
 
     // 2) Resolve dictionary endpoints for readable schedule entries
-    const [weekDays, lessonHours, scheduleEntries] = await Promise.all([
+    const [
+        weekDays,
+        lessonHours,
+        lessonsDictionary,
+        teachersDictionary,
+        subjectsDictionary,
+        scheduleEntries,
+    ] =
+        await Promise.all([
         fetchJsonList(`${base}/api/dni-tygodnia/`),
         fetchJsonList(`${base}/api/godziny-lekcyjne/`),
+        fetchJsonList(`${base}/api/zajecia/`),
+        fetchJsonList(`${base}/api/nauczyciele/`),
+        fetchJsonList(`${base}/api/przedmioty/`),
         Promise.all(
             plans.map((plan) =>
                 fetchJsonList(
@@ -126,10 +145,64 @@ export const getUserSchedule = async (userId: number): Promise<ScheduleResponse>
         const id = Number(h?.id ?? h?.pk ?? NaN);
         if (Number.isNaN(id)) return;
         hourMap.set(id, {
-            from: h?.godzina_od ?? h?.od ?? h?.start ?? h?.start_time,
-            to: h?.godzina_do ?? h?.do ?? h?.end ?? h?.end_time,
+            from:
+                h?.CzasOd ??
+                h?.czas_od ??
+                h?.godzina_od ??
+                h?.od ??
+                h?.start ??
+                h?.start_time,
+            to:
+                h?.CzasDo ??
+                h?.czas_do ??
+                h?.godzina_do ??
+                h?.do ??
+                h?.end ??
+                h?.end_time,
             label: h?.nazwa ?? h?.label,
         });
+    });
+
+    const subjectMap = new Map<number, string>();
+    const teacherMap = new Map<number, string>();
+    const lessonTeacherMap = new Map<number, string>();
+
+    subjectsDictionary.forEach((subject: any) => {
+        const id = Number(subject?.id ?? subject?.pk ?? NaN);
+        if (Number.isNaN(id)) return;
+        const name = subject?.nazwa ?? subject?.name ?? subject?.title;
+        if (name) subjectMap.set(id, String(name));
+    });
+
+    lessonsDictionary.forEach((item: any) => {
+        const id = Number(item?.id ?? item?.pk ?? NaN);
+        if (Number.isNaN(id)) return;
+        const subjectId = Number(item?.przedmiot ?? item?.przedmiot_id ?? NaN);
+        const subjectName =
+            subjectMap.get(subjectId) ??
+            item?.nazwa ??
+            item?.name ??
+            item?.przedmiot_nazwa ??
+            item?.przedmiot?.nazwa ??
+            item?.przedmiot?.name;
+        if (subjectName) subjectMap.set(id, String(subjectName));
+
+        const teacherId = Number(
+            item?.nauczyciel_id ?? item?.nauczyciel ?? item?.teacher_id ?? item?.teacher ?? NaN
+        );
+        if (!Number.isNaN(teacherId)) {
+            const teacherName = toDisplayName(item?.nauczyciel ?? item?.teacher);
+            if (teacherName) teacherMap.set(teacherId, teacherName);
+            const mappedTeacherName = teacherMap.get(teacherId);
+            if (mappedTeacherName) lessonTeacherMap.set(id, mappedTeacherName);
+        }
+    });
+
+    teachersDictionary.forEach((teacher: any) => {
+        const id = Number(teacher?.id ?? teacher?.pk ?? NaN);
+        if (Number.isNaN(id)) return;
+        const name = toDisplayName(teacher?.user ?? teacher);
+        if (name) teacherMap.set(id, name);
     });
 
     const grouped: Record<number, Lesson[]> = { 0: [], 1: [], 2: [], 3: [], 4: [] };
@@ -146,21 +219,29 @@ export const getUserSchedule = async (userId: number): Promise<ScheduleResponse>
 
         const hourRef = Number(entry?.godzina_lekcyjna ?? entry?.godzina_lekcyjna_id ?? NaN);
         const hourInfo = hourMap.get(hourRef);
+        const zajeciaRef = Number(entry?.zajecia ?? entry?.zajecia_id ?? NaN);
+        const teacherRef = Number(
+            entry?.nauczyciel_id ?? entry?.nauczyciel ?? entry?.teacher_id ?? entry?.teacher ?? NaN
+        );
 
         const subject =
+            subjectMap.get(zajeciaRef) ??
             entry?.zajecia_nazwa ??
             entry?.przedmiot_nazwa ??
             entry?.zajecia?.nazwa ??
             entry?.zajecia?.name ??
             entry?.subject ??
-            "Lekcja";
+            "Brak nazwy przedmiotu";
         const room = entry?.sala ?? entry?.room ?? "Sala";
         const teacher =
+            lessonTeacherMap.get(zajeciaRef) ??
+            teacherMap.get(teacherRef) ??
             entry?.nauczyciel_nazwa ??
+            toDisplayName(entry?.nauczyciel) ??
             entry?.nauczyciel ??
             entry?.teacher ??
             entry?.prowadzacy ??
-            "Nauczyciel";
+            "Brak nauczyciela";
 
         grouped[dayIndex].push({
             id: Number.isNaN(entryId) ? Math.floor(Math.random() * 1_000_000_000) : entryId,

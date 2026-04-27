@@ -59,6 +59,7 @@ export default function Grades() {
     const [expandedStat, setExpandedStat] = useState<"average" | "behavior" | null>(
         null
     );
+    const [periodFilter, setPeriodFilter] = useState<1 | 2>(1);
 
     const load = async () => {
         if (!user) return;
@@ -83,23 +84,32 @@ export default function Grades() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.serverId, user?.id]);
 
+    const getGradeSemester = (grade: { semester?: 1 | 2; date?: string }): 1 | 2 | null => {
+        if (grade.semester === 1 || grade.semester === 2) return grade.semester;
+        const parsedDate = new Date(grade.date ?? "");
+        if (Number.isNaN(parsedDate.getTime())) return null;
+        const month = parsedDate.getMonth();
+        return month === 0 || month >= 8 ? 1 : 2;
+    };
+
     const overallAverage = useMemo(() => {
         if (!subjects) return null;
-        const all = subjects.flatMap((subject) => subject.grades);
+        const all = subjects
+            .flatMap((subject) => subject.grades)
+            .filter((grade) => getGradeSemester(grade) === periodFilter);
         return calculateWeightedAverage(all);
-    }, [subjects]);
+    }, [periodFilter, subjects]);
 
     const { behaviorPointsTotal, behaviorGradeLabel } = useMemo(() => {
         const baseline = 150;
 
         if (!behaviorGrades || behaviorGrades.grades.length === 0) {
-            return { behaviorPointsTotal: baseline, behaviorGradeLabel: "db" };
+            return { behaviorPointsTotal: baseline, behaviorGradeLabel: "db", behaviorPointsDelta: 0 };
         }
 
-        const sum = behaviorGrades.grades.reduce(
-            (accumulator, grade) => accumulator + (Number(grade.value) || 0),
-            0
-        );
+        const sum = behaviorGrades.grades
+            .filter((grade) => getGradeSemester(grade) === periodFilter)
+            .reduce((accumulator, grade) => accumulator + (Number(grade.value) || 0), 0);
         const total = baseline + sum;
         const label =
             total >= 351
@@ -114,8 +124,8 @@ export default function Grades() {
                         ? "ndp"
                         : "nag";
 
-        return { behaviorPointsTotal: total, behaviorGradeLabel: label };
-    }, [behaviorGrades]);
+        return { behaviorPointsTotal: total, behaviorGradeLabel: label, behaviorPointsDelta: sum };
+    }, [behaviorGrades, periodFilter]);
 
     const filteredSubjects = useMemo(() => {
         if (!subjects) return [];
@@ -124,12 +134,19 @@ export default function Grades() {
             .filter((subject) =>
                 subject.subject.toLowerCase().includes(search.toLowerCase())
             )
+            .map((subject) => ({
+                ...subject,
+                grades: subject.grades.filter(
+                    (grade) => getGradeSemester(grade) === periodFilter
+                ),
+            }))
+            .filter((subject) => subject.grades.length > 0)
             .sort((left, right) => {
                 const leftAverage = calculateWeightedAverage(left.grades) ?? 0;
                 const rightAverage = calculateWeightedAverage(right.grades) ?? 0;
                 return rightAverage - leftAverage;
             });
-    }, [search, subjects]);
+    }, [periodFilter, search, subjects]);
 
     return (
         <>
@@ -205,6 +222,41 @@ export default function Grades() {
                         </TouchableOpacity>
                     </View>
 
+                </View>
+
+                <View style={styles.periodFilterWrap}>
+                    {[
+                        { key: 1 as const, label: "Okres 1" },
+                        { key: 2 as const, label: "Okres 2" },
+                    ].map((option) => {
+                        const active = periodFilter === option.key;
+                        return (
+                            <TouchableOpacity
+                                key={option.key}
+                                activeOpacity={0.9}
+                                onPress={() => setPeriodFilter(option.key)}
+                                style={[
+                                    styles.periodFilterButton,
+                                    {
+                                        backgroundColor: active
+                                            ? palette.primary
+                                            : palette.pageSection,
+                                    },
+                                ]}
+                            >
+                                <Text
+                                    style={[
+                                        editorialType.meta,
+                                        {
+                                            color: active ? "#ffffff" : palette.textMuted,
+                                        },
+                                    ]}
+                                >
+                                    {option.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
                 <View style={{ marginTop: 24 }}>
@@ -518,7 +570,7 @@ export default function Grades() {
                                 >
                                     {expandedStat === "average"
                                         ? "Biezaca srednia wazona ze wszystkich aktywnych ocen."
-                                        : `Aktualna ocena zachowania. Punkty: ${behaviorPointsTotal}.`}
+                                        : `Aktualna ocena zachowania dla wybranego okresu. Punkty: ${behaviorPointsTotal}.`}
                                 </Text>
                             </EditorialPanel>
                         </TouchableOpacity>
@@ -611,5 +663,18 @@ const styles = StyleSheet.create({
     },
     expandedStatCaption: {
         marginTop: 10,
+    },
+    periodFilterWrap: {
+        marginTop: 12,
+        flexDirection: "row",
+        gap: 10,
+    },
+    periodFilterButton: {
+        flex: 1,
+        minHeight: 40,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 10,
     },
 });

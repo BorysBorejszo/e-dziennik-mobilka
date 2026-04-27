@@ -113,11 +113,13 @@ const Schedule: React.FC = () => {
 
     const loadSchedule = async () => {
         if (!user) return;
+        const studentId = (user.serverId ?? user.id) as number | undefined;
+        if (!studentId) return;
 
         setLoading(true);
 
         try {
-            const scheduleData = await getUserSchedule(user.id);
+            const scheduleData = await getUserSchedule(studentId);
             const daySchedule = scheduleData.schedule.find(
                 (day) => day.dayIndex === selectedIndex
             );
@@ -134,7 +136,7 @@ const Schedule: React.FC = () => {
     useEffect(() => {
         void loadSchedule();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id, selectedIndex]);
+    }, [user?.id, user?.serverId, selectedIndex]);
 
     const getMonthGrid = (monthDate: Date) => {
         const firstOfMonth = new Date(

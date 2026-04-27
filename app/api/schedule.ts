@@ -1,195 +1,180 @@
-import auth, { getApiBaseUrl } from './auth';
+import auth, { getApiBaseUrl } from "./auth";
 
 export type Lesson = {
-  id: number;
-  subject: string;
-  time: string;
-  room: string;
-  teacher: string;
+    id: number;
+    subject: string;
+    time: string;
+    room: string;
+    teacher: string;
 };
 
 export type DaySchedule = {
-  dayIndex: number; // 0=Monday, 1=Tuesday, ..., 4=Friday
-  lessons: Lesson[];
+    dayIndex: number; // 0=Monday, 1=Tuesday, ..., 4=Friday
+    lessons: Lesson[];
 };
 
 export type ScheduleResponse = {
-  schedule: DaySchedule[];
+    schedule: DaySchedule[];
 };
 
-const DB: Record<number, ScheduleResponse> = {
-  1: {
-    // Jan Kowalski - klasa 3A
-    schedule: [
-      {
-        dayIndex: 0, // Poniedziałek
-        lessons: [
-          { id: 1, subject: "Matematyka", time: "8:00 - 8:45", room: "Sala 12", teacher: "M. Nowak" },
-          { id: 2, subject: "Język Polski", time: "8:55 - 9:40", room: "Sala 8", teacher: "A. Kowalska" },
-          { id: 3, subject: "Fizyka", time: "9:50 - 10:35", room: "Lab 3", teacher: "J. Wiśniewski" },
-          { id: 4, subject: "WF", time: "10:45 - 11:30", room: "Sala Gym", teacher: "P. Mazur" },
-          { id: 5, subject: "Język Angielski", time: "11:40 - 12:25", room: "Sala 15", teacher: "K. Lewandowska" },
-          { id: 6, subject: "Historia", time: "12:35 - 13:20", room: "Sala 9", teacher: "T. Dąbrowski" },
-        ],
-      },
-      {
-        dayIndex: 1, // Wtorek
-        lessons: [
-          { id: 1, subject: "Chemia", time: "8:00 - 8:45", room: "Lab 2", teacher: "E. Szymańska" },
-          { id: 2, subject: "Matematyka", time: "8:55 - 9:40", room: "Sala 12", teacher: "M. Nowak" },
-          { id: 3, subject: "Język Angielski", time: "9:50 - 10:35", room: "Sala 15", teacher: "K. Lewandowska" },
-          { id: 4, subject: "Biologia", time: "10:45 - 11:30", room: "Lab 1", teacher: "R. Pawlak" },
-          { id: 5, subject: "Geografia", time: "11:40 - 12:25", room: "Sala 7", teacher: "M. Kowal" },
-          { id: 6, subject: "Informatyka", time: "12:35 - 13:20", room: "Lab IT", teacher: "P. Zieliński" },
-        ],
-      },
-      {
-        dayIndex: 2, // Środa
-        lessons: [
-          { id: 1, subject: "Język Polski", time: "8:00 - 8:45", room: "Sala 8", teacher: "A. Kowalska" },
-          { id: 2, subject: "Historia", time: "8:55 - 9:40", room: "Sala 9", teacher: "T. Dąbrowski" },
-          { id: 3, subject: "Matematyka", time: "9:50 - 10:35", room: "Sala 12", teacher: "M. Nowak" },
-          { id: 4, subject: "WF", time: "10:45 - 11:30", room: "Sala Gym", teacher: "P. Mazur" },
-          { id: 5, subject: "Muzyka", time: "11:40 - 12:25", room: "Sala 20", teacher: "L. Adamczyk" },
-        ],
-      },
-      {
-        dayIndex: 3, // Czwartek
-        lessons: [
-          { id: 1, subject: "Fizyka", time: "8:00 - 8:45", room: "Lab 3", teacher: "J. Wiśniewski" },
-          { id: 2, subject: "Język Angielski", time: "8:55 - 9:40", room: "Sala 15", teacher: "K. Lewandowska" },
-          { id: 3, subject: "Matematyka", time: "9:50 - 10:35", room: "Sala 12", teacher: "M. Nowak" },
-          { id: 4, subject: "Plastyka", time: "10:45 - 11:30", room: "Sala 18", teacher: "S. Król" },
-          { id: 5, subject: "Język Polski", time: "11:40 - 12:25", room: "Sala 8", teacher: "A. Kowalska" },
-          { id: 6, subject: "WOS", time: "12:35 - 13:20", room: "Sala 11", teacher: "B. Wojcik" },
-        ],
-      },
-      {
-        dayIndex: 4, // Piątek
-        lessons: [
-          { id: 1, subject: "Język Niemiecki", time: "8:00 - 8:45", room: "Sala 16", teacher: "H. Schmidt" },
-          { id: 2, subject: "Geografia", time: "8:55 - 9:40", room: "Sala 7", teacher: "M. Kowal" },
-          { id: 3, subject: "Chemia", time: "9:50 - 10:35", room: "Lab 2", teacher: "E. Szymańska" },
-          { id: 4, subject: "Historia", time: "10:45 - 11:30", room: "Sala 9", teacher: "T. Dąbrowski" },
-          { id: 5, subject: "Matematyka", time: "11:40 - 12:25", room: "Sala 12", teacher: "M. Nowak" },
-        ],
-      },
-    ],
-  },
-  2: {
-    // Anna Nowak - klasa 2B
-    schedule: [
-      {
-        dayIndex: 0, // Poniedziałek
-        lessons: [
-          { id: 1, subject: "Biologia", time: "8:00 - 8:45", room: "Lab 1", teacher: "R. Pawlak" },
-          { id: 2, subject: "Matematyka", time: "8:55 - 9:40", room: "Sala 14", teacher: "K. Jankowski" },
-          { id: 3, subject: "Język Angielski", time: "9:50 - 10:35", room: "Sala 17", teacher: "M. Brown" },
-          { id: 4, subject: "Historia", time: "10:45 - 11:30", room: "Sala 10", teacher: "A. Zawadzki" },
-          { id: 5, subject: "Plastyka", time: "11:40 - 12:25", room: "Sala 18", teacher: "S. Król" },
-        ],
-      },
-      {
-        dayIndex: 1, // Wtorek
-        lessons: [
-          { id: 1, subject: "Język Polski", time: "8:00 - 8:45", room: "Sala 6", teacher: "B. Wójcik" },
-          { id: 2, subject: "Fizyka", time: "8:55 - 9:40", room: "Lab 4", teacher: "T. Nowicki" },
-          { id: 3, subject: "WF", time: "9:50 - 10:35", room: "Sala Gym", teacher: "P. Mazur" },
-          { id: 4, subject: "Geografia", time: "10:45 - 11:30", room: "Sala 7", teacher: "M. Kowal" },
-          { id: 5, subject: "Matematyka", time: "11:40 - 12:25", room: "Sala 14", teacher: "K. Jankowski" },
-          { id: 6, subject: "Informatyka", time: "12:35 - 13:20", room: "Lab IT", teacher: "P. Zieliński" },
-        ],
-      },
-      {
-        dayIndex: 2, // Środa
-        lessons: [
-          { id: 1, subject: "Chemia", time: "8:00 - 8:45", room: "Lab 2", teacher: "E. Szymańska" },
-          { id: 2, subject: "Język Angielski", time: "8:55 - 9:40", room: "Sala 17", teacher: "M. Brown" },
-          { id: 3, subject: "Muzyka", time: "9:50 - 10:35", room: "Sala 20", teacher: "L. Adamczyk" },
-          { id: 4, subject: "Matematyka", time: "10:45 - 11:30", room: "Sala 14", teacher: "K. Jankowski" },
-          { id: 5, subject: "Język Polski", time: "11:40 - 12:25", room: "Sala 6", teacher: "B. Wójcik" },
-        ],
-      },
-      {
-        dayIndex: 3, // Czwartek
-        lessons: [
-          { id: 1, subject: "WF", time: "8:00 - 8:45", room: "Sala Gym", teacher: "P. Mazur" },
-          { id: 2, subject: "Biologia", time: "8:55 - 9:40", room: "Lab 1", teacher: "R. Pawlak" },
-          { id: 3, subject: "Historia", time: "9:50 - 10:35", room: "Sala 10", teacher: "A. Zawadzki" },
-          { id: 4, subject: "Język Francuski", time: "10:45 - 11:30", room: "Sala 19", teacher: "C. Dubois" },
-          { id: 5, subject: "Matematyka", time: "11:40 - 12:25", room: "Sala 14", teacher: "K. Jankowski" },
-          { id: 6, subject: "WOS", time: "12:35 - 13:20", room: "Sala 11", teacher: "B. Wojcik" },
-        ],
-      },
-      {
-        dayIndex: 4, // Piątek
-        lessons: [
-          { id: 1, subject: "Fizyka", time: "8:00 - 8:45", room: "Lab 4", teacher: "T. Nowicki" },
-          { id: 2, subject: "Język Polski", time: "8:55 - 9:40", room: "Sala 6", teacher: "B. Wójcik" },
-          { id: 3, subject: "Geografia", time: "9:50 - 10:35", room: "Sala 7", teacher: "M. Kowal" },
-          { id: 4, subject: "Język Angielski", time: "10:45 - 11:30", room: "Sala 17", teacher: "M. Brown" },
-        ],
-      },
-    ],
-  },
+const DEFAULT_ADMIN_KEY = "7KU2mc6ZxflGYE5QqjmZ7wcN0OI3rX1p";
+
+const extractList = (json: any): any[] => {
+    if (!json) return [];
+    if (Array.isArray(json)) return json;
+    if (Array.isArray(json.results)) return json.results;
+    if (Array.isArray(json.data)) return json.data;
+    if (Array.isArray(json.items)) return json.items;
+    return [];
+};
+
+const fetchJsonList = async (url: string): Promise<any[]> => {
+    const res = await auth.authenticatedFetch(url, {
+        headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    return extractList(json);
+};
+
+const resolveClassIdForStudent = async (studentId: number): Promise<number | null> => {
+    const base = getApiBaseUrl();
+    const candidates = [
+        `${base}/api/uczniowie/${studentId}/`,
+        `${base}/api/uczniowie/?id=${studentId}`,
+        `${base}/api/uczniowie/?user_id=${studentId}`,
+    ];
+
+    for (const url of candidates) {
+        try {
+            const res = await auth.authenticatedFetch(url, {
+                headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
+            });
+            if (!res.ok) continue;
+            const json = await res.json().catch(() => null);
+            const row = Array.isArray(json) ? json[0] : extractList(json)[0] ?? json;
+            if (!row) continue;
+            const classId = Number(
+                row.klasa_id ?? row.klasa ?? row.class_id ?? row.class ?? NaN
+            );
+            if (!Number.isNaN(classId)) return classId;
+        } catch {
+            continue;
+        }
+    }
+
+    return null;
+};
+
+const toDayIndex = (value: any): number | null => {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    const numeric = Number(value);
+    if (!Number.isNaN(numeric)) {
+        if (numeric >= 1 && numeric <= 5) return numeric - 1;
+        if (numeric >= 0 && numeric <= 4) return numeric;
+    }
+    if (normalized === "pn" || normalized.includes("ponied")) return 0;
+    if (normalized === "wt" || normalized.includes("wtor")) return 1;
+    if (normalized === "sr" || normalized.includes("śr") || normalized.includes("sro")) return 2;
+    if (normalized === "czw" || normalized.includes("czwar")) return 3;
+    if (normalized === "pt" || normalized.includes("piat") || normalized.includes("piąt")) return 4;
+    return null;
+};
+
+const formatTimeRange = (from?: string, to?: string): string => {
+    const left = (from ?? "").slice(0, 5);
+    const right = (to ?? "").slice(0, 5);
+    if (left && right) return `${left} - ${right}`;
+    if (left) return left;
+    if (right) return right;
+    return "—";
 };
 
 export const getUserSchedule = async (userId: number): Promise<ScheduleResponse> => {
-  // Try remote server first (if available). Fall back to local mock DB if remote fails.
-  try {
-    const endpoints = [
-      `${getApiBaseUrl()}/api/plan/?uczen_id=${userId}`,
-      `${getApiBaseUrl()}/api/plan/?user_id=${userId}`,
-      `${getApiBaseUrl()}/api/plan/?uczen=${userId}`,
-    ];
+    const base = getApiBaseUrl();
+    const classId = await resolveClassIdForStudent(userId);
+    if (!classId) return { schedule: [] };
 
-    for (const url of endpoints) {
-      try {
-        const res = await auth.authenticatedFetch(url);
-        if (!res || !res.ok) continue;
-        const json = await res.json().catch(() => null);
-        if (!json) continue;
+    // 1) Find schedule plans for this class only
+    const plans = await fetchJsonList(`${base}/api/plany-zajec/?klasa_id=${classId}`);
+    if (plans.length === 0) return { schedule: [] };
 
-        // Try common shapes: { schedule: [...] } or array of days or results
-        const items: any[] = Array.isArray(json)
-          ? json
-          : Array.isArray(json.schedule)
-          ? json.schedule
-          : Array.isArray(json.results)
-          ? json.results
-          : Array.isArray(json.data)
-          ? json.data
-          : [];
+    // 2) Resolve dictionary endpoints for readable schedule entries
+    const [weekDays, lessonHours, scheduleEntries] = await Promise.all([
+        fetchJsonList(`${base}/api/dni-tygodnia/`),
+        fetchJsonList(`${base}/api/godziny-lekcyjne/`),
+        Promise.all(
+            plans.map((plan) =>
+                fetchJsonList(
+                    `${base}/api/plan-wpisy/?plan_id=${encodeURIComponent(
+                        String(plan?.id ?? plan?.pk ?? "")
+                    )}`
+                )
+            )
+        ).then((chunks) => chunks.flat()),
+    ]);
 
-        if (items.length === 0) continue;
+    const weekDayMap = new Map<number, number>();
+    weekDays.forEach((d: any) => {
+        const id = Number(d?.id ?? d?.pk ?? NaN);
+        const idx = toDayIndex(d?.Numer ?? d?.numer ?? d?.name ?? d?.nazwa ?? d?.value);
+        if (!Number.isNaN(id) && idx !== null) weekDayMap.set(id, idx);
+    });
 
-        // Map incoming items to DaySchedule when possible
-        const schedule: DaySchedule[] = items.map((d: any) => {
-          const dayIndex = Number(d.dayIndex ?? d.dzien ?? d.day ?? -1);
-          const lessons: Lesson[] = Array.isArray(d.lessons)
-            ? d.lessons
-            : Array.isArray(d.lekcje)
-            ? d.lekcje
-            : [];
-          return { dayIndex: Number.isFinite(dayIndex) ? dayIndex : -1, lessons };
+    const hourMap = new Map<number, { from?: string; to?: string; label?: string }>();
+    lessonHours.forEach((h: any) => {
+        const id = Number(h?.id ?? h?.pk ?? NaN);
+        if (Number.isNaN(id)) return;
+        hourMap.set(id, {
+            from: h?.godzina_od ?? h?.od ?? h?.start ?? h?.start_time,
+            to: h?.godzina_do ?? h?.do ?? h?.end ?? h?.end_time,
+            label: h?.nazwa ?? h?.label,
         });
+    });
 
-        return { schedule };
-      } catch (e) {
-        continue;
-      }
-    }
-  } catch (e) {
-    // ignore remote errors and fall back to local DB
-  }
+    const grouped: Record<number, Lesson[]> = { 0: [], 1: [], 2: [], 3: [], 4: [] };
 
-  await new Promise((r) => setTimeout(r, 300));
-  const data = DB[userId];
-  if (!data) return { schedule: [] };
-  return {
-    schedule: data.schedule.map((day) => ({
-      dayIndex: day.dayIndex,
-      lessons: [...day.lessons],
-    })),
-  };
+    scheduleEntries.forEach((entry: any) => {
+        const rowClassId = Number(entry?.klasa_id ?? entry?.klasa ?? classId);
+        if (rowClassId !== classId) return;
+
+        const entryId = Number(entry?.id ?? entry?.pk ?? NaN);
+        const dayRef = Number(entry?.dzien_tygodnia ?? entry?.dzien ?? NaN);
+        const explicitDay = toDayIndex(entry?.dzien_numer ?? entry?.day ?? entry?.day_index);
+        const dayIndex = explicitDay ?? weekDayMap.get(dayRef) ?? null;
+        if (dayIndex === null || dayIndex < 0 || dayIndex > 4) return;
+
+        const hourRef = Number(entry?.godzina_lekcyjna ?? entry?.godzina_lekcyjna_id ?? NaN);
+        const hourInfo = hourMap.get(hourRef);
+
+        const subject =
+            entry?.zajecia_nazwa ??
+            entry?.przedmiot_nazwa ??
+            entry?.zajecia?.nazwa ??
+            entry?.zajecia?.name ??
+            entry?.subject ??
+            "Lekcja";
+        const room = entry?.sala ?? entry?.room ?? "Sala";
+        const teacher =
+            entry?.nauczyciel_nazwa ??
+            entry?.nauczyciel ??
+            entry?.teacher ??
+            entry?.prowadzacy ??
+            "Nauczyciel";
+
+        grouped[dayIndex].push({
+            id: Number.isNaN(entryId) ? Math.floor(Math.random() * 1_000_000_000) : entryId,
+            subject: String(subject),
+            time: formatTimeRange(hourInfo?.from, hourInfo?.to) || hourInfo?.label || "—",
+            room: String(room),
+            teacher: String(teacher),
+        });
+    });
+
+    const schedule: DaySchedule[] = [0, 1, 2, 3, 4].map((dayIndex) => ({
+        dayIndex,
+        lessons: grouped[dayIndex] ?? [],
+    }));
+
+    return { schedule };
 };

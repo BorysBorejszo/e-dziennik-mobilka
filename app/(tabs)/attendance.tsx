@@ -139,7 +139,10 @@ export default function Attendance() {
 
             if (status === "Obecny") present++;
             else if (status === "Spóźniony") late++;
-            else if (status === "Usprawiedliwiony" || status === "Zwolnienie") {
+            else if (status === "Zwolnienie") {
+                present++;
+                excused++;
+            } else if (status === "Usprawiedliwiony") {
                 excused++;
                 absent++;
             } else if (status === "Nieobecny") absent++;
@@ -268,9 +271,12 @@ export default function Attendance() {
 
             if (entry.status === "Obecny") current.present += 1;
             else if (entry.status === "Spóźniony") current.late += 1;
+            else if (entry.status === "Zwolnienie") {
+                current.present += 1;
+                current.excused += 1;
+            }
             else if (
-                entry.status === "Usprawiedliwiony" ||
-                entry.status === "Zwolnienie"
+                entry.status === "Usprawiedliwiony"
             ) {
                 current.excused += 1;
                 current.absent += 1;
@@ -391,16 +397,6 @@ export default function Attendance() {
                                 { backgroundColor: palette.primary },
                             ]}
                         >
-                            <View
-                                style={[
-                                    styles.heroGlowLarge,
-                                    {
-                                        backgroundColor: palette.primaryContainer,
-                                    },
-                                ]}
-                            />
-                            <View style={styles.heroGlowSmall} />
-
                             <View style={styles.heroTopRow}>
                                 <View
                                     style={[
@@ -1044,24 +1040,6 @@ const styles = StyleSheet.create({
         overflow: "hidden",
         padding: 22,
         minHeight: 336,
-    },
-    heroGlowLarge: {
-        position: "absolute",
-        width: 240,
-        height: 240,
-        borderRadius: 120,
-        top: -64,
-        right: -72,
-        opacity: 0.42,
-    },
-    heroGlowSmall: {
-        position: "absolute",
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        bottom: 36,
-        right: 28,
-        backgroundColor: "rgba(255,255,255,0.08)",
     },
     heroTopRow: {
         flexDirection: "row",

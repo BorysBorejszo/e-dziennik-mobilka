@@ -1,10 +1,11 @@
 import Ionicons from "@expo/vector-icons/build/Ionicons";
 import Entypo from "@expo/vector-icons/Entypo";
-import { useRouter, useSegments } from "expo-router";
+import { useSegments } from "expo-router";
 import * as React from "react";
 import {
     Animated,
     Dimensions,
+    StyleSheet,
     Text,
     TouchableOpacity,
     View
@@ -19,6 +20,9 @@ import AppSidebar from "../components/app-sidebar";
 import SafeView from "../components/SafeView";
 import { SidebarProvider } from "../components/ui/sidebar";
 import "../globals.css";
+import {
+  getEditorialPalette,
+} from "../theme/editorial";
 import { useTheme } from "../theme/ThemeContext";
 import AttendancePage from "./attendance";
 import GradesPage from "./grades";
@@ -28,7 +32,6 @@ import SchedulePage from "./schedule";
 import SettingsPage from "./settings";
 
 export default function Layout() {
-  const router = useRouter();
   const segments = useSegments();
 
   // route order must match the Tabs.Screen order below
@@ -152,8 +155,6 @@ export default function Layout() {
           offset.setValue(target);
           setActiveIndex(next);
           isHorizontalRef.current = false;
-          const route = routes[next];
-          const path = route === "index" ? "/" : `/${route}`;
           // do NOT call router.replace when swiping — update UI only (live preview + offset)
           // Navigation URL will still update when user taps the tab bar.
         });
@@ -177,8 +178,6 @@ export default function Layout() {
           offset.setValue(target);
           setActiveIndex(prev);
           isHorizontalRef.current = false;
-          const route = routes[prev];
-          const path = route === "index" ? "/" : `/${route}`;
           // do NOT call router.replace when swiping — update UI only (live preview + offset)
           // Navigation URL will still update when user taps the tab bar.
         });
@@ -199,11 +198,10 @@ export default function Layout() {
   // now ensures vertical scroll keeps priority while horizontal swipe changes pages.
   const swipeEnabled = true;
 
-  const bg = theme === "dark" ? "#000" : "#fff";
-  const tabBarBg = theme === "dark" ? "#0b0b0b" : "#f8fafc";
-  const tabBarBorder = theme === "dark" ? "#374151" : "#e5e7eb";
-  const activeTint = theme === "dark" ? "#60A5FA" : "#2563EB";
-  const inactiveTint = theme === "dark" ? "#9CA3AF" : "#6B7280";
+  const palette = getEditorialPalette(theme);
+  const bg = palette.background;
+  const activeTint = palette.onPrimary;
+  const inactiveTint = palette.textSoft;
 
   const insets = useSafeAreaInsets();
 
@@ -238,6 +236,7 @@ export default function Layout() {
                 {/* horizontal row of pages for live preview */}
                 <View
                   style={{
+                    flex: 1,
                     width: screenWidth * routes.length,
                     flexDirection: "row",
                   }}
@@ -266,100 +265,133 @@ export default function Layout() {
           {/* Custom static tab bar (not animated) */}
           <View
             style={{
-              flexDirection: "row",
-              height: 72 + insets.bottom,
-              paddingBottom: 8 + insets.bottom,
-              paddingTop: 6,
-              backgroundColor: tabBarBg,
-              borderTopWidth: 0,
-              alignItems: "center",
-              justifyContent: "space-around",
+              paddingBottom: insets.bottom,
+              backgroundColor: palette.tabBar,
             }}
           >
-            {routes.map((route, i) => {
-              const focused = i === activeIndex;
-              const color = focused ? activeTint : inactiveTint;
-              return (
-                <TouchableOpacity
-                  key={route}
-                  onPress={() => navigateToIndex(i)}
-                  style={{
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flex: 1,
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    style={{ alignItems: "center", justifyContent: "center" }}
+            <View
+              style={[
+                styles.tabBarShell,
+                { backgroundColor: palette.tabBar },
+              ]}
+            >
+              {routes.map((route, i) => {
+                const focused = i === activeIndex;
+                const iconColor = focused ? activeTint : inactiveTint;
+                const labelColor = focused ? activeTint : palette.textMuted;
+
+                return (
+                  <TouchableOpacity
+                    key={route}
+                    onPress={() => navigateToIndex(i)}
+                    style={styles.tabTouch}
+                    activeOpacity={0.8}
                   >
-                    {/* larger icon container so icons match the provided screenshot */}
                     <View
-                      style={{
-                        height: 36,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
+                      style={[
+                        styles.tabPill,
+                        focused
+                          ? { backgroundColor: palette.primary }
+                          : null,
+                      ]}
                     >
-                      {route === "index" && (
-                        <Entypo name="home" size={26} color={color} />
-                      )}
-                      {route === "schedule" && (
-                        <Entypo name="calendar" size={26} color={color} />
-                      )}
-                      {route === "settings" && (
-                        <Entypo name="cog" size={26} color={color} />
-                      )}
-                      {route === "grades" && (
-                        <Ionicons
-                          name="ribbon-outline"
-                          size={28}
-                          color={color}
-                          style={{ marginTop: 1 }}
-                        />
-                      )}
-                      {route === "attendance" && (
-                        <Ionicons
-                          name="stats-chart-outline"
-                          size={28}
-                          color={color}
-                          style={{ marginTop: 1 }}
-                        />
-                      )}
-                      {route === "messages" && (
-                        <Entypo name="chat" size={26} color={color} />
-                      )}
+                      <View style={styles.tabIconWrap}>
+                        {route === "index" && (
+                          <Entypo name="home" size={22} color={iconColor} />
+                        )}
+                        {route === "schedule" && (
+                          <Entypo
+                            name="calendar"
+                            size={22}
+                            color={iconColor}
+                          />
+                        )}
+                        {route === "settings" && (
+                          <Entypo name="cog" size={22} color={iconColor} />
+                        )}
+                        {route === "grades" && (
+                          <Ionicons
+                            name="ribbon-outline"
+                            size={23}
+                            color={iconColor}
+                          />
+                        )}
+                        {route === "attendance" && (
+                          <Ionicons
+                            name="stats-chart-outline"
+                            size={23}
+                            color={iconColor}
+                          />
+                        )}
+                        {route === "messages" && (
+                          <Entypo name="chat" size={22} color={iconColor} />
+                        )}
+                      </View>
+                      <Text
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        style={[
+                          styles.tabLabel,
+                          {
+                            color: labelColor,
+                            opacity: focused ? 1 : 0.92,
+                          },
+                        ]}
+                      >
+                        {route === "index"
+                          ? "Główna"
+                          : route === "schedule"
+                            ? "Plan"
+                            : route === "settings"
+                              ? "Ustawienia"
+                              : route === "grades"
+                                ? "Oceny"
+                                : route === "attendance"
+                                  ? "Frekwencja"
+                                  : "Wiadomości"}
+                      </Text>
                     </View>
-                    <Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      style={{
-                        color,
-                        fontSize: 12,
-                        marginTop: 0,
-                        maxWidth: 48,
-                        textAlign: "center",
-                      }}
-                    >
-                      {route === "index"
-                        ? "Główna"
-                        : route === "schedule"
-                          ? "Plan"
-                          : route === "settings"
-                            ? "Ustawienia"
-                            : route === "grades"
-                              ? "Oceny"
-                              : route === "attendance"
-                                ? "Frekwencja"
-                                : "Wiadomości"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
   </SafeView>
       </GestureHandlerRootView>
     </SidebarProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarShell: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  tabTouch: {
+    flex: 1,
+  },
+  tabPill: {
+    minHeight: 56,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  tabIconWrap: {
+    minHeight: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 5,
+  },
+});

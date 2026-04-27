@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal, Text, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +19,9 @@ export default function SubjectDetails() {
     const [subjectData, setSubjectData] = useState<SubjectGrades | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedGrade, setSelectedGrade] = useState<GradeItem | null>(null);
+    const [semesterFilter, setSemesterFilter] = useState<
+        "all" | "semester1" | "semester2"
+    >("all");
 
     useEffect(() => {
         const load = async () => {
@@ -41,18 +44,6 @@ export default function SubjectDetails() {
         };
         load();
     }, [user?.serverId, user?.id, subject]);
-
-    // For behavior subject we display total points (baseline + sum of entries) instead of average
-    const average = (() => {
-        if (!subjectData) return null;
-        const isBehavior = /zachow/i.test(subjectData.subject);
-        if (isBehavior) {
-            const baseline = 150; // same baseline used elsewhere
-            const sum = subjectData.grades.reduce((acc, g) => acc + (Number(g.value) || 0), 0);
-            return baseline + sum;
-        }
-        return calculateWeightedAverage(subjectData.grades);
-    })();
 
     const chipBg = (v: number) => {
         switch (true) {
@@ -110,6 +101,69 @@ export default function SubjectDetails() {
     // detect behavior subject (zachowanie / zachowanie (punkty) etc.) so we can display raw points
     const isBehaviorSubject = !!subjectData && /zachow/i.test(subjectData.subject);
 
+    const getGradeSemester = (grade: GradeItem): 1 | 2 | null => {
+        if (grade.semester === 1 || grade.semester === 2) {
+            return grade.semester;
+        }
+
+        const parsedDate = new Date(grade.date);
+        if (Number.isNaN(parsedDate.getTime())) {
+            return null;
+        }
+
+        const month = parsedDate.getMonth();
+        return month === 0 || month >= 8 ? 1 : 2;
+    };
+
+    const visibleGrades = useMemo(() => {
+        if (!subjectData) return [];
+
+        return [...subjectData.grades]
+            .filter((grade) => {
+                if (semesterFilter === "all") return true;
+
+                const semester = getGradeSemester(grade);
+                if (semesterFilter === "semester1") return semester === 1;
+                return semester === 2;
+            })
+            .sort((left, right) => {
+                const leftTime = new Date(left.date).getTime();
+                const rightTime = new Date(right.date).getTime();
+                return rightTime - leftTime;
+            });
+    }, [semesterFilter, subjectData]);
+
+    const summaryValue = useMemo(() => {
+        if (!subjectData) return null;
+
+        if (isBehaviorSubject) {
+            const baseline = semesterFilter === "all" ? 150 : 0;
+            const points = visibleGrades.reduce(
+                (accumulator, grade) => accumulator + (Number(grade.value) || 0),
+                baseline
+            );
+            return points;
+        }
+
+        return calculateWeightedAverage(visibleGrades);
+    }, [isBehaviorSubject, semesterFilter, subjectData, visibleGrades]);
+
+    const summaryLabel =
+        semesterFilter === "semester1"
+            ? "1 semestr"
+            : semesterFilter === "semester2"
+              ? "2 semestr"
+              : isBehaviorSubject
+                ? "Punkty"
+                : "Srednia";
+
+    const summaryDisplay =
+        summaryValue === null
+            ? "—"
+            : isBehaviorSubject
+              ? String(summaryValue)
+              : summaryValue.toFixed(2);
+
     const displayValue = (g?: GradeItem | null) => {
         if (!g) return '';
         if (isBehaviorSubject) return String(Math.round(Number(g.value) || 0));
@@ -165,11 +219,62 @@ export default function SubjectDetails() {
                                 theme === "dark" ? "text-gray-500" : "text-gray-600"
                             } text-lg text-center`}
                         >
-                            Średnia
+                            {summaryLabel}
                         </Text>
                         <Text className={`${textClass} text-6xl font-bold text-center mt-2`}>
-                            {average ?? "—"}
+                            {summaryDisplay}
                         </Text>
+                    </View>
+
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            backgroundColor: theme === "dark" ? "#111827" : "#eef2f6",
+                            borderRadius: 18,
+                            padding: 4,
+                            marginBottom: 24,
+                        }}
+                    >
+                        {[
+                            { key: "all" as const, label: "Wszystkie" },
+                            { key: "semester1" as const, label: "1 semestr" },
+                            { key: "semester2" as const, label: "2 semestr" },
+                        ].map((option) => {
+                            const active = semesterFilter === option.key;
+
+                            return (
+                                <TouchableOpacity
+                                    key={option.key}
+                                    activeOpacity={0.9}
+                                    onPress={() => setSemesterFilter(option.key)}
+                                    style={{
+                                        flex: 1,
+                                        minHeight: 42,
+                                        borderRadius: 14,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        backgroundColor: active
+                                            ? "#2563EB"
+                                            : "transparent",
+                                        paddingHorizontal: 8,
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            color: active
+                                                ? "#FFFFFF"
+                                                : theme === "dark"
+                                                  ? "#D1D5DB"
+                                                  : "#4B5563",
+                                            fontSize: 12,
+                                            fontWeight: "700",
+                                        }}
+                                    >
+                                        {option.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
 
                     {/* Lista ocen */}
@@ -187,13 +292,13 @@ export default function SubjectDetails() {
 
                     {!loading &&
                         subjectData &&
-                        subjectData.grades.length === 0 && (
+                        visibleGrades.length === 0 && (
                             <Text className={`${textClass} text-center mt-4`}>Brak ocen</Text>
                         )}
 
                     {!loading &&
                         subjectData &&
-                        subjectData.grades.map((grade, idx) => (
+                        visibleGrades.map((grade, idx) => (
                             <TouchableOpacity key={idx} activeOpacity={0.8} onPress={() => setSelectedGrade(grade)}>
                                 <View
                                     className={`mb-3 p-4 rounded-xl ${

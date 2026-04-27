@@ -1,5 +1,10 @@
-import React from 'react';
-import { Text, View } from 'react-native';
+import React from "react";
+import { Text, View } from "react-native";
+import {
+  editorialType,
+  getEditorialPalette,
+} from "../../theme/editorial";
+import { useTheme } from "../../theme/ThemeContext";
 
 type EmptyStateProps = {
   icon?: React.ReactNode;
@@ -8,12 +13,53 @@ type EmptyStateProps = {
   className?: string;
 };
 
-const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, subtitle, className = '' }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({
+  icon,
+  title,
+  subtitle,
+  className = "",
+}) => {
+  const { theme } = useTheme();
+  const palette = getEditorialPalette(theme);
+
   return (
-    <View className={`items-center justify-center py-12 ${className}`}>
+    <View
+      className={`items-center justify-center py-12 ${className}`}
+      style={{
+        backgroundColor: palette.pageSection,
+        borderRadius: 22,
+        paddingHorizontal: 20,
+      }}
+    >
       {icon}
-      {title ? <Text className="mt-4 text-center text-lg font-medium">{title}</Text> : null}
-      {subtitle ? <Text className="mt-2 text-center text-sm text-gray-500">{subtitle}</Text> : null}
+      {title ? (
+        <Text
+          style={[
+            editorialType.title,
+            {
+              color: palette.text,
+              textAlign: "center",
+              marginTop: 16,
+            },
+          ]}
+        >
+          {title}
+        </Text>
+      ) : null}
+      {subtitle ? (
+        <Text
+          style={[
+            editorialType.body,
+            {
+              color: palette.textMuted,
+              textAlign: "center",
+              marginTop: 8,
+            },
+          ]}
+        >
+          {subtitle}
+        </Text>
+      ) : null}
     </View>
   );
 };

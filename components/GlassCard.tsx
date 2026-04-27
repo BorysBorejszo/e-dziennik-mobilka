@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, ViewProps } from "react-native";
+import {
+  getEditorialPalette,
+  getEditorialShadow,
+} from "../app/theme/editorial";
 import { useTheme } from "../app/theme/ThemeContext";
 
 type Props = ViewProps & {
@@ -31,18 +35,21 @@ export default function GlassCard({
     }
   }, []);
 
+  const palette = getEditorialPalette(theme);
+
   const dynamicContainer = {
-    borderColor:
-      theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(2,6,23,0.06)",
-    backgroundColor:
-      theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.98)",
-    shadowColor: theme === "dark" ? "#000" : "#000",
+    backgroundColor: palette.surfaceGlass,
   } as any;
 
   return (
     <View
       {...rest}
-      style={[styles.container, dynamicContainer, style]}
+      style={[
+        styles.container,
+        dynamicContainer,
+        getEditorialShadow(theme, "floating"),
+        style,
+      ]}
       className={className}
     >
       {blurAvailable && BlurView ? (
@@ -62,18 +69,15 @@ export default function GlassCard({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: 24,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
-    backgroundColor: "rgba(255,255,255,0.9)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.12,
+    shadowRadius: 32,
+    elevation: 12,
   },
   content: {
-    padding: 14,
-    gap: 12,
+    padding: 18,
+    gap: 14,
   },
 });

@@ -1,376 +1,500 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
-import { calculateWeightedAverage, createGrade, getUserGrades, SubjectGrades } from "../api/grades";
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+    calculateWeightedAverage,
+    getUserGrades,
+    SubjectGrades,
+} from "../api/grades";
+import {
+    EditorialPanel,
+    EditorialSearchField,
+    EditorialSectionHeader,
+    EditorialSegmentedControl,
+    EditorialStatCard,
+} from "../components/editorial/MobileBlocks";
 import Header from "../components/Header";
-import Card from "../components/ui/Card";
 import EmptyState from "../components/ui/EmptyState";
 import { useUser } from "../context/UserContext";
+import { editorialType, getEditorialPalette } from "../theme/editorial";
 import { useTheme } from "../theme/ThemeContext";
 
-export default function Grades() {
-    const { theme } = useTheme();
-    const { user, setUser } = useUser();
-    const router = useRouter();
-    const bg = theme === "dark" ? "#000" : "#fff";
-    const textClass = theme === "dark" ? "text-white" : "text-black";
-
-    const [showCompact, setShowCompact] = useState(false);
-    const [subjects, setSubjects] = useState<SubjectGrades[] | null>(null);
-    const [behaviorGrades, setBehaviorGrades] = useState<SubjectGrades | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    // add grade form
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [newSubject, setNewSubject] = useState('');
-    const [newSubjectId, setNewSubjectId] = useState('');
-    const [subjectsList, setSubjectsList] = useState<Array<{ id: number; nazwa: string }>>([]);
-    const [subjectsLoading, setSubjectsLoading] = useState(false);
-    const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
-    const [newValue, setNewValue] = useState('');
-    const [newCategory, setNewCategory] = useState('');
-    const [newDate, setNewDate] = useState('');
-    const [gradeType, setGradeType] = useState<'standard' | 'periodic' | 'final'>('standard');
-    const [newOkres, setNewOkres] = useState('I');
-    const [newRokSzkolny, setNewRokSzkolny] = useState(`${new Date().getFullYear() - 1}/${new Date().getFullYear()}`);
-    const [creating, setCreating] = useState(false);
-    const [formError, setFormError] = useState<string | null>(null);
-
-    // Dodaj tę funkcję na początku komponentu Grades (przed return)
-const formatGradeLabel = (value: number): string => {
+function formatGradeLabel(value: number): string {
     const rounded = Math.round(value * 100) / 100;
     const intValue = Math.floor(rounded);
     const decimal = Math.round((rounded - intValue) * 100) / 100;
-    if (decimal < 0.01) {
-        return String(intValue);
-    }
-    if (Math.abs(decimal - 0.5) < 0.01) {
-        return `${intValue}+`;
-    }
-    if (Math.abs(decimal - 0.75) < 0.01) {
-        return `${intValue + 1}-`;
-    }
+
+    if (decimal < 0.01) return String(intValue);
+    if (Math.abs(decimal - 0.5) < 0.01) return `${intValue}+`;
+    if (Math.abs(decimal - 0.75) < 0.01) return `${intValue + 1}-`;
     return String(value);
-};
+}
+
+function getGradeTone(value: number) {
+    if (value >= 5.75) return { bg: "#1b7c54", text: "#ffffff" };
+    if (value >= 4.75) return { bg: "#2f8c68", text: "#ffffff" };
+    if (value >= 3.75) return { bg: "#0056d2", text: "#ffffff" };
+    if (value >= 2.75) return { bg: "#c7851d", text: "#ffffff" };
+    if (value >= 1.75) return { bg: "#cf7a3f", text: "#ffffff" };
+    return { bg: "#cf5a41", text: "#ffffff" };
+}
+
+export default function Grades() {
+    const { theme } = useTheme();
+    const { user } = useUser();
+    const router = useRouter();
+    const palette = getEditorialPalette(theme);
+    const [subjects, setSubjects] = useState<SubjectGrades[] | null>(null);
+    const [behaviorGrades, setBehaviorGrades] = useState<SubjectGrades | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+    const [mode, setMode] = useState<"subjects" | "behavior">("subjects");
 
     const load = async () => {
         if (!user) return;
         setLoading(true);
-        setError(null);
+
         try {
             const serverId = (user as any).serverId ?? user.id;
-            const res = await getUserGrades(serverId);
-            setSubjects(res.subjects);
-            setBehaviorGrades(res.behavior || null);
-        } catch (e) {
-            setError("Nie udało się pobrać ocen");
+            const result = await getUserGrades(serverId);
+            setSubjects(result.subjects);
+            setBehaviorGrades(result.behavior ?? null);
+        } catch (error) {
+            console.error("[grades] Failed to fetch grades", error);
+            setSubjects([]);
+            setBehaviorGrades(null);
         } finally {
             setLoading(false);
         }
     };
 
-    const loadSubjectsList = async () => {
-        setSubjectsLoading(true);
-        try {
-            const s = await (await import('../api/grades')).listSubjects();
-            setSubjectsList(s);
-        } catch (e) {
-            setSubjectsList([]);
-        } finally {
-            setSubjectsLoading(false);
-        }
-    };
-
     useEffect(() => {
-        load();
-        // Re-run when user's serverId or id changes
+        void load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.serverId, user?.id]);
 
-    useEffect(() => {
-        // Preload subjects list when add form is opened
-        if (showAddForm) loadSubjectsList();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showAddForm]);
-
     const overallAverage = useMemo(() => {
         if (!subjects) return null;
-        const all = subjects.flatMap((s) => s.grades);
+        const all = subjects.flatMap((subject) => subject.grades);
         return calculateWeightedAverage(all);
     }, [subjects]);
 
-    // Compute behavior points total and convert to grade label per rules
     const { behaviorPointsTotal, behaviorGradeLabel } = useMemo(() => {
-        const baseline = 150; // starting points at beginning of semester
-        if (!behaviorGrades || !Array.isArray(behaviorGrades.grades) || behaviorGrades.grades.length === 0) {
-            // default baseline maps to "dobre" -> short code 'db'
-            return { behaviorPointsTotal: baseline, behaviorGradeLabel: 'db' };
+        const baseline = 150;
+
+        if (!behaviorGrades || behaviorGrades.grades.length === 0) {
+            return { behaviorPointsTotal: baseline, behaviorGradeLabel: "db" };
         }
-        const sum = behaviorGrades.grades.reduce((acc, g) => acc + (Number(g.value) || 0), 0);
+
+        const sum = behaviorGrades.grades.reduce(
+            (accumulator, grade) => accumulator + (Number(grade.value) || 0),
+            0
+        );
         const total = baseline + sum;
-        // Map to short codes per request:
-        // >=351 -> cel, 251-350 -> bdb, 150-250 -> db, 75-149 -> pop, 26-74 -> nod, <=25 -> ng
-        const label = (() => {
-            if (total >= 351) return 'cel';
-            if (total >= 251) return 'bdb';
-            if (total >= 150) return 'db';
-            if (total >= 75) return 'pop';
-            if (total >= 26) return 'nod';
-            return 'ng';
-        })();
+        const label =
+            total >= 351
+                ? "cel"
+                : total >= 251
+                  ? "bdb"
+                  : total >= 150
+                    ? "db"
+                    : total >= 75
+                      ? "pop"
+                      : total >= 26
+                        ? "ndp"
+                        : "nag";
+
         return { behaviorPointsTotal: total, behaviorGradeLabel: label };
     }, [behaviorGrades]);
 
-    const chipBg = (v: number) => {
-        switch (true) {
-            case v >= 5.75:
-                return "bg-emerald-600";
-            case v >= 4.75:
-                return "bg-green-500";
-            case v >= 3.75:
-                return "bg-blue-500";
-            case v >= 2.75:
-                return "bg-amber-500";
-            case v >= 1.75:
-                return "bg-orange-500";
-            default:
-                return "bg-red-500";
-        }
-    };
+    const filteredSubjects = useMemo(() => {
+        if (!subjects) return [];
 
-      const zacBg = (v: number) => {
-        switch (true) {
-            case v >= 1:
-                return "bg-emerald-600";
-            
-            default:
-                return "bg-red-500";
-        }
-    };
-    const handleScroll = (e: any) => {
-        const offsetY = e.nativeEvent.contentOffset.y;
-        setShowCompact(offsetY > 100);
-    };
+        return subjects
+            .filter((subject) =>
+                subject.subject.toLowerCase().includes(search.toLowerCase())
+            )
+            .sort((left, right) => {
+                const leftAverage = calculateWeightedAverage(left.grades) ?? 0;
+                const rightAverage = calculateWeightedAverage(right.grades) ?? 0;
+                return rightAverage - leftAverage;
+            });
+    }, [search, subjects]);
 
     return (
         <ScrollView
             stickyHeaderIndices={[0]}
-        style={{ flex: 1, backgroundColor: bg }}
+            style={{ flex: 1, backgroundColor: palette.background }}
             contentContainerStyle={{ paddingBottom: 120 }}
             showsVerticalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={theme === 'dark' ? '#fff' : '#000'} />}
+            refreshControl={
+                <RefreshControl
+                    refreshing={loading}
+                    onRefresh={load}
+                    tintColor={palette.primary}
+                />
+            }
         >
-            <Header title="Oceny" subtitle="Podsumowanie ocen">
-                {showCompact && (
-                    <View className="flex-row items-center gap-3">
-                        <View className="flex-row items-center gap-1.5">
-                            <Text
-                                className={`${
-                                    theme === "dark"
-                                        ? "text-gray-400"
-                                        : "text-gray-600"
-                                } text-sm`}
-                            >
-                                Śr:
-                            </Text>
-                            <Text className={`${textClass} text-lg font-bold`}>
-                                {overallAverage ?? "—"}
-                            </Text>
-                        </View>
-                        <View
-                            className={`w-px h-5 ${
-                                theme === "dark" ? "bg-gray-700" : "bg-gray-300"
-                            }`}
+            <Header
+                title="Oceny"
+                subtitle="Podsumowanie ocen z biezacego okresu"
+            />
+
+            <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                        <EditorialStatCard
+                            eyebrow="Srednia"
+                            value={overallAverage ? overallAverage.toFixed(2) : "—"}
+                            caption="Biezaca srednia wazona ze wszystkich aktywnych ocen."
+                            icon="stats-chart-outline"
+                            tone="primary"
                         />
-                        <View className="flex-row items-center gap-1.5">
-                            <Text
-                                className={`${
-                                    theme === "dark"
-                                        ? "text-gray-400"
-                                        : "text-gray-600"
-                                } text-sm`}
-                            >
-                                Zach:
-                            </Text>
-                            <Text className={`${textClass} text-lg font-bold`}>
-                                {behaviorGradeLabel ?? '—'}
-                            </Text>
-                        </View>
                     </View>
-                )}
-            </Header>
-                {/* Add grade quick action */}
-                <View className="px-4 mt-3">
-                    <Card className="w-full p-3">
-                        <View className="flex-row items-center justify-between">
-                            <Text className={`${theme === "dark" ? "text-gray-400" : "text-gray-600"} text-base`}>Masz pomysł? Dodaj ocenę ręcznie.</Text>
-                            <TouchableOpacity activeOpacity={0.7} onPress={() => setShowAddForm((s) => !s)}>
-                                <View className="bg-blue-500 px-3 py-2 rounded">
-                                    <Text className="text-white">{showAddForm ? 'Anuluj' : 'Dodaj ocenę'}</Text>
-                                </View>
-                            </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                        <EditorialStatCard
+                            eyebrow="Zachowanie"
+                            value={behaviorGradeLabel}
+                            caption={`Punkty zachowania: ${behaviorPointsTotal}`}
+                            icon="sparkles-outline"
+                            tone="warning"
+                            onPress={() => setMode("behavior")}
+                        />
+                    </View>
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+                    <View style={{ flex: 1 }}>
+                        <EditorialStatCard
+                            eyebrow="Wszystkie oceny"
+                            value={String(
+                                subjects?.reduce(
+                                    (accumulator, subject) =>
+                                        accumulator + subject.grades.length,
+                                    0
+                                ) ?? 0
+                            ).padStart(2, "0")}
+                            caption="Liczba wpisow widocznych w aktualnym roku."
+                            icon="ribbon-outline"
+                            tone="neutral"
+                        />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <EditorialStatCard
+                            eyebrow="Przedmioty"
+                            value={String(subjects?.length ?? 0).padStart(2, "0")}
+                            caption="Aktywne przedmioty z dostepnymi ocenami."
+                            icon="library-outline"
+                            tone="warning"
+                        />
+                    </View>
+                </View>
+
+                <View style={{ marginTop: 24 }}>
+                    <EditorialSegmentedControl
+                        value={mode}
+                        onChange={setMode}
+                        options={[
+                            {
+                                key: "subjects",
+                                label: "Przedmioty",
+                                count: subjects?.length ?? 0,
+                            },
+                            {
+                                key: "behavior",
+                                label: "Zachowanie",
+                                count: behaviorGrades?.grades.length ?? 0,
+                            },
+                        ]}
+                    />
+                </View>
+
+                {mode === "subjects" ? (
+                    <>
+                        <View style={{ marginTop: 16 }}>
+                            <EditorialSearchField
+                                value={search}
+                                onChangeText={setSearch}
+                                placeholder="Szukaj przedmiotu..."
+                            />
                         </View>
 
-                        {showAddForm && (
-                            <View className="mt-3">
-                                {/* Subject selector: choose from API list instead of typing name */}
-                                <TouchableOpacity onPress={() => setShowSubjectDropdown((s) => !s)} style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 10, borderRadius: 6, marginBottom: 8, backgroundColor: theme === 'dark' ? '#0b1220' : '#fff' }}>
-                                    <Text style={{ color: newSubject ? (theme === 'dark' ? '#fff' : '#000') : '#9CA3AF' }}>{newSubject ? newSubject : (subjectsLoading ? 'Ładowanie przedmiotów...' : 'Wybierz przedmiot')}</Text>
-                                </TouchableOpacity>
-                                {showSubjectDropdown && (
-                                    <View style={{ maxHeight: 220, borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#eee', borderRadius: 8, marginBottom: 8, backgroundColor: theme === 'dark' ? '#05060a' : '#fff' }}>
-                                        <ScrollView>
-                                            {subjectsLoading && (
-                                                <View style={{ padding: 12 }}><Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Ładowanie...</Text></View>
-                                            )}
-                                            {!subjectsLoading && subjectsList.length === 0 && (
-                                                <View style={{ padding: 12 }}><Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>Brak przedmiotów</Text></View>
-                                            )}
-                                            {!subjectsLoading && subjectsList.map((s) => (
-                                                <TouchableOpacity key={s.id} onPress={() => { setNewSubject(s.nazwa); setNewSubjectId(String(s.id)); setShowSubjectDropdown(false); }} style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: theme === 'dark' ? '#0f1724' : '#f3f4f6' }}>
-                                                    <Text style={{ color: theme === 'dark' ? '#fff' : '#111' }}>{s.nazwa}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </ScrollView>
-                                    </View>
-                                )}
-                                <TextInput value={newValue} onChangeText={setNewValue} placeholder="Wartość (np. 5)" keyboardType="numeric" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
-                                <TextInput value={newCategory} onChangeText={setNewCategory} placeholder="Kategoria (np. Kartkówka)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
-                                <TextInput value={newDate} onChangeText={setNewDate} placeholder="Data (YYYY-MM-DD) - opcjonalnie" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
+                        <View style={{ marginTop: 28 }}>
+                            <EditorialSectionHeader
+                                eyebrow="Przeglad"
+                                title="Przedmioty"
+                                meta={String(filteredSubjects.length)}
+                            />
 
-                                {/* grade type selector */}
-                                <View className="flex-row justify-between my-2">
-                                    <TouchableOpacity onPress={() => setGradeType('standard')} style={{ padding: 8, borderRadius: 6, backgroundColor: gradeType === 'standard' ? '#2563EB' : (theme === 'dark' ? '#111' : '#f3f4f6') }}>
-                                        <Text style={{ color: gradeType === 'standard' ? '#fff' : (theme === 'dark' ? '#fff' : '#000') }}>Ocena</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setGradeType('periodic')} style={{ padding: 8, borderRadius: 6, backgroundColor: gradeType === 'periodic' ? '#2563EB' : (theme === 'dark' ? '#111' : '#f3f4f6') }}>
-                                        <Text style={{ color: gradeType === 'periodic' ? '#fff' : (theme === 'dark' ? '#fff' : '#000') }}>Ocena okresowa</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setGradeType('final')} style={{ padding: 8, borderRadius: 6, backgroundColor: gradeType === 'final' ? '#2563EB' : (theme === 'dark' ? '#111' : '#f3f4f6') }}>
-                                        <Text style={{ color: gradeType === 'final' ? '#fff' : (theme === 'dark' ? '#fff' : '#000') }}>Ocena końcowa</Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                {gradeType === 'periodic' && (
-                                    <TextInput value={newOkres} onChangeText={setNewOkres} placeholder="Okres (np. I lub II)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
-                                )}
-                                {gradeType === 'final' && (
-                                    <TextInput value={newRokSzkolny} onChangeText={setNewRokSzkolny} placeholder="Rok szkolny (np. 2024/2025)" style={{ borderWidth: 1, borderColor: theme === 'dark' ? '#333' : '#ddd', padding: 8, borderRadius: 6, marginBottom: 8, color: theme === 'dark' ? '#fff' : '#000' }} />
-                                )}
-                                {formError && <Text className="text-red-500 mb-2">{formError}</Text>}
-                                <TouchableOpacity activeOpacity={0.8} onPress={async () => {
-                                    setFormError(null);
-                                    if (!user) { setFormError('Brak zalogowanego użytkownika'); return; }
-                                    if (!newSubject.trim()) { setFormError('Wybierz przedmiot'); return; }
-                                    const v = Number(newValue);
-                                    if (!v || v < 1 || v > 6) { setFormError('Podaj poprawną wartość (1-6)'); return; }
-                                    setCreating(true);
-                                    try {
-                                        const serverId = (user as any).serverId ?? user.id;
-                                        await createGrade({ userId: serverId, subject: newSubject.trim() || undefined, subjectId: newSubjectId ? Number(newSubjectId) : undefined, value: v, date: newDate || undefined, category: newCategory || undefined, type: gradeType, okres: gradeType === 'periodic' ? newOkres : undefined, rok_szkolny: gradeType === 'final' ? newRokSzkolny : undefined });
-                                        // reset and reload
-                                        setNewSubject(''); setNewValue(''); setNewCategory(''); setNewDate(''); setShowAddForm(false);
-                                        await load();
-                                    } catch (e: any) {
-                                        // show detailed server error when present
-                                        const msg = e?.message ?? String(e);
-                                        setFormError(msg);
-                                    } finally {
-                                        setCreating(false);
+                            {loading ? (
+                                <EmptyState
+                                    title="Ladowanie ocen"
+                                    subtitle="Zbieram dane z przedmiotow i wyliczam podsumowanie."
+                                />
+                            ) : filteredSubjects.length === 0 ? (
+                                <EmptyState
+                                    title={
+                                        search
+                                            ? "Brak dopasowanych przedmiotow"
+                                            : "Brak ocen"
                                     }
-                                }}>
-                                    <View className={`px-3 py-2 rounded ${creating ? 'bg-gray-400' : 'bg-green-600'}`}>
-                                        <Text className="text-white">{creating ? 'Wysyłanie...' : 'Zapisz ocenę'}</Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
+                                    subtitle="Gdy pojawia sie pierwsze wpisy, zobaczysz je tutaj."
+                                />
+                            ) : (
+                                filteredSubjects.map((subject, index) => {
+                                    const average =
+                                        calculateWeightedAverage(subject.grades);
+                                    const grades = subject.grades.slice(0, 8);
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={subject.subject}
+                                            activeOpacity={0.88}
+                                            onPress={() =>
+                                                router.push(
+                                                    `/przedmiot/${encodeURIComponent(
+                                                        subject.subject
+                                                    )}`
+                                                )
+                                            }
+                                            style={{ marginTop: index === 0 ? 0 : 12 }}
+                                        >
+                                            <EditorialPanel>
+                                                <View style={styles.subjectCard}>
+                                                    <View style={{ flex: 1, paddingRight: 12 }}>
+                                                        <Text
+                                                            style={[
+                                                                editorialType.title,
+                                                                { color: palette.text },
+                                                            ]}
+                                                        >
+                                                            {subject.subject}
+                                                        </Text>
+                                                        <Text
+                                                            style={[
+                                                                editorialType.body,
+                                                                {
+                                                                    color: palette.textMuted,
+                                                                    marginTop: 6,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            {subject.grades.length} wpisow w aktualnym widoku.
+                                                        </Text>
+                                                    </View>
+
+                                                    <View style={{ alignItems: "flex-end" }}>
+                                                        <Text
+                                                            style={[
+                                                                editorialType.headline,
+                                                                {
+                                                                    color: palette.primary,
+                                                                    fontSize: 24,
+                                                                    lineHeight: 28,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            {average ? average.toFixed(2) : "—"}
+                                                        </Text>
+                                                        <Text
+                                                            style={[
+                                                                editorialType.meta,
+                                                                { color: palette.textSoft, marginTop: 4 },
+                                                            ]}
+                                                        >
+                                                            Srednia
+                                                        </Text>
+                                                    </View>
+                                                </View>
+
+                                                <View style={styles.gradeGrid}>
+                                                    {grades.map((grade, gradeIndex) => {
+                                                        const numericValue = Number(grade.value) || 0;
+                                                        const tone = getGradeTone(numericValue);
+
+                                                        return (
+                                                            <View
+                                                                key={`${subject.subject}-${gradeIndex}`}
+                                                                style={[
+                                                                    styles.gradeChip,
+                                                                    {
+                                                                        backgroundColor: tone.bg,
+                                                                    },
+                                                                ]}
+                                                            >
+                                                                <Text
+                                                                    style={[
+                                                                        editorialType.meta,
+                                                                        {
+                                                                            color: tone.text,
+                                                                            fontSize: 14,
+                                                                        },
+                                                                    ]}
+                                                                >
+                                                                    {formatGradeLabel(numericValue)}
+                                                                </Text>
+                                                            </View>
+                                                        );
+                                                    })}
+                                                    {subject.grades.length > 8 ? (
+                                                        <View
+                                                            style={[
+                                                                styles.gradeChip,
+                                                                {
+                                                                    backgroundColor:
+                                                                        palette.pageSection,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            <Text
+                                                                style={[
+                                                                    editorialType.meta,
+                                                                    { color: palette.textMuted },
+                                                                ]}
+                                                            >
+                                                                +{subject.grades.length - 8}
+                                                            </Text>
+                                                        </View>
+                                                    ) : null}
+                                                </View>
+                                            </EditorialPanel>
+                                        </TouchableOpacity>
+                                    );
+                                })
+                            )}
+                        </View>
+                    </>
+                ) : (
+                    <View style={{ marginTop: 28 }}>
+                        <EditorialSectionHeader
+                            eyebrow="Punkty"
+                            title="Zachowanie"
+                            meta={String(behaviorGrades?.grades.length ?? 0)}
+                        />
+
+                        {behaviorGrades?.grades.length ? (
+                            behaviorGrades.grades.map((grade, index) => {
+                                const points = Number(grade.value) || 0;
+                                const positive = points >= 0;
+
+                                return (
+                                    <TouchableOpacity
+                                        key={`behavior-${index}`}
+                                        activeOpacity={0.92}
+                                        onPress={() =>
+                                            router.push(
+                                                `/przedmiot/${encodeURIComponent(
+                                                    behaviorGrades.subject
+                                                )}`
+                                            )
+                                        }
+                                        style={{ marginTop: index === 0 ? 0 : 12 }}
+                                    >
+                                        <EditorialPanel>
+                                            <View style={styles.behaviorRow}>
+                                                <View
+                                                    style={[
+                                                        styles.behaviorIcon,
+                                                        {
+                                                            backgroundColor: positive
+                                                                ? palette.successSoft
+                                                                : palette.dangerSoft,
+                                                        },
+                                                    ]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            editorialType.title,
+                                                            {
+                                                                color: positive
+                                                                    ? palette.successText
+                                                                    : palette.dangerText,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {points >= 0 ? `+${points}` : `${points}`}
+                                                    </Text>
+                                                </View>
+
+                                                <View style={{ flex: 1, paddingRight: 12 }}>
+                                                    <Text
+                                                        style={[
+                                                            editorialType.title,
+                                                            { color: palette.text },
+                                                        ]}
+                                                    >
+                                                        {grade.label || "Wpis zachowania"}
+                                                    </Text>
+                                                    <Text
+                                                        style={[
+                                                            editorialType.body,
+                                                            {
+                                                                color: palette.textMuted,
+                                                                marginTop: 6,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {grade.date
+                                                            ? new Date(grade.date).toLocaleDateString(
+                                                                  "pl-PL"
+                                                              )
+                                                            : "Brak daty"}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </EditorialPanel>
+                                    </TouchableOpacity>
+                                );
+                            })
+                        ) : (
+                            <EmptyState
+                                title="Brak wpisow zachowania"
+                                subtitle="Gdy pojawia sie punkty dodatnie lub ujemne, zobaczysz je tutaj."
+                            />
                         )}
-                    </Card>
-                </View>
-
-            <View>
-                <Card className="mt-3 mx-4 h-32 overflow-hidden">
-                    <View className="flex-row items-center h-full">
-                        <View className="flex-1 p-4 items-center justify-center">
-                            <Text className={`${theme === "dark" ? "text-gray-500" : "text-gray-600"} text-lg`}>Średnia ocen</Text>
-                            <Text className={`${textClass} text-5xl font-bold mt-2`}>{overallAverage ?? "—"}</Text>
-                        </View>
-
-                        {/* pionowa kreska */}
-                        <View className={`w-px ${theme === "dark" ? "bg-gray-800" : "bg-gray-200"} h-full`} />
-
-                        <View className="flex-1 p-4 items-center justify-center">
-                            <Text className={`${theme === "dark" ? "text-gray-500" : "text-gray-600"} text-lg`}>Ocena z zachowania</Text>
-                            <Text className={`${textClass} text-5xl font-bold `}>{behaviorGradeLabel ?? "—"}</Text>
-                        </View>
-                    </View>
-                </Card>
-
-                {/* Zachowanie jako osobna sekcja */}
-                {behaviorGrades && behaviorGrades.grades && behaviorGrades.grades.length > 0 && (
-                    <View className="px-4 mt-4">
-                        <Text className={`${textClass} text-2xl mt-0`}>
-                            Zachowanie:
-                        </Text>
-                        <TouchableOpacity activeOpacity={0.7} onPress={() => behaviorGrades && router.push(`/przedmiot/${encodeURIComponent(behaviorGrades.subject)}`)}>
-                            <Card className="mt-3 w-full p-4">
-                                <View className="flex-row items-center justify-between mb-2">
-                                    <Text className={`${textClass} text-lg font-semibold`}>{behaviorGrades?.subject}</Text>
-                                    <Text className={`${textClass} text-base`}>Śr: {behaviorGradeLabel ?? "—"}</Text>
-                                </View>
-                                <View className="flex-row flex-wrap">
-                                    {behaviorGrades?.grades?.map((g, i) => (
-                                        // match visual style/size of subject grade chips
-                                        <View key={i} className={`${zacBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2 items-center justify-center`}>
-                                            <Text className={`text-white text-sm font-medium`}>{String(Math.round(Number(g.value)))}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            </Card>
-                        </TouchableOpacity>
                     </View>
                 )}
-
-                <View className="px-4 mt-4">
-                    <Text className={`${textClass} text-2xl mt-0`}>
-                        Oceny z przedmiotów:
-                    </Text>
-                    {loading && (
-                        <View className="mt-3">
-                            <ActivityIndicator color={theme === "dark" ? "#fff" : "#000"} />
-                        </View>
-                    )}
-                    {error && (
-                        <Text className="text-red-500 mt-3">{error}</Text>
-                    )}
-                    {!loading && subjects && subjects.length === 0 && (
-                        <EmptyState title="Brak ocen" />
-                    )}
-                    {!loading && subjects?.map((s, idx) => {
-                        const avg = calculateWeightedAverage(s.grades);
-                        return (
-                            <TouchableOpacity key={idx} activeOpacity={0.7} onPress={() => router.push(`/przedmiot/${encodeURIComponent(s.subject)}`)}>
-                                <Card className="mt-3 w-full p-4">
-                                    <View className="flex-row items-center justify-between mb-2">
-                                        <Text className={`${textClass} text-lg font-semibold`}>{s.subject}</Text>
-                                        <Text className={`${textClass} text-base`}>Śr: {avg ?? "—"}</Text>
-                                    </View>
-                                    <View className="flex-row flex-wrap">
-                                        {s.grades.map((g, i) => (
-                                            <View key={i} className={`${chipBg(g.value)} rounded-lg px-2 py-1 mr-2 mb-2`}>
-                                                <Text className={`text-white text-sm font-medium`}>{formatGradeLabel(Number(g.value))}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                </Card>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
             </View>
         </ScrollView>
     );
 }
+
+const styles = StyleSheet.create({
+    subjectCard: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        paddingHorizontal: 18,
+        paddingTop: 18,
+        paddingBottom: 12,
+    },
+    gradeGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        paddingHorizontal: 18,
+        paddingBottom: 18,
+    },
+    gradeChip: {
+        minWidth: 42,
+        height: 42,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 10,
+    },
+    behaviorRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 18,
+        paddingVertical: 18,
+    },
+    behaviorIcon: {
+        minWidth: 60,
+        height: 48,
+        borderRadius: 16,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 14,
+        paddingHorizontal: 10,
+    },
+});

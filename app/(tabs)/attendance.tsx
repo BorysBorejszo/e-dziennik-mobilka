@@ -1,41 +1,122 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     Modal,
     RefreshControl,
+    ScrollView,
+    StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import {
     AttendanceEntry,
     AttendanceRecord,
     getAttendanceById,
     getUserAttendance,
 } from "../api/attendance";
+import {
+    EditorialPanel,
+    EditorialSectionHeader,
+} from "../components/editorial/MobileBlocks";
 import Header from "../components/Header";
 import Card from "../components/ui/Card";
 import EmptyState from "../components/ui/EmptyState";
 import { useUser } from "../context/UserContext";
+import {
+    EditorialPalette,
+    editorialType,
+    getEditorialPalette,
+    getEditorialShadow,
+} from "../theme/editorial";
 import { useTheme } from "../theme/ThemeContext";
+
+type StatusTone = {
+    soft: string;
+    text: string;
+};
+
+function getStatusTone(
+    status: string,
+    palette: EditorialPalette
+): StatusTone {
+    if (status === "Obecny") {
+        return {
+            soft: palette.successSoft,
+            text: palette.successText,
+        };
+    }
+
+    if (status === "Spóźniony") {
+        return {
+            soft: palette.warningSoft,
+            text: palette.warningText,
+        };
+    }
+
+    if (status === "Usprawiedliwiony" || status === "Zwolnienie") {
+        return {
+            soft: palette.infoSoft,
+            text: palette.infoText,
+        };
+    }
+
+    return {
+        soft: palette.dangerSoft,
+        text: palette.dangerText,
+    };
+}
+
+function getStatusInitial(status: string) {
+    if (status === "Obecny") return "O";
+    if (status === "Spóźniony") return "S";
+    if (status === "Usprawiedliwiony") return "U";
+    if (status === "Zwolnienie") return "Z";
+    return "N";
+}
+
+function formatAttendanceDate(value?: string) {
+    if (!value) return "Brak daty";
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "Brak daty";
+
+    return parsed.toLocaleDateString("pl-PL", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    });
+}
+
+function getAttendanceNarrative(
+    percentage: string,
+    total: number,
+    absent: number
+) {
+    if (total === 0) {
+        return "Dane frekwencji pojawia sie tutaj, gdy system doda pierwsze wpisy.";
+    }
+
+    if (absent === 0) {
+        return `Bardzo dobry rytm obecnosci. Wszystkie ${total} wpisy wspieraja stabilna frekwencje.`;
+    }
+
+    return `Aktualny wynik to ${percentage}. Nieobecnosci wymagajace uwagi: ${absent}.`;
+}
 
 export default function Attendance() {
     const { theme } = useTheme();
     const { user } = useUser();
+    const palette = getEditorialPalette(theme);
     const [showCompact, setShowCompact] = useState(false);
     const [entries, setEntries] = useState<AttendanceEntry[] | null>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [rawRecords, setRawRecords] = useState<AttendanceRecord[]>([]);
-
-    // Modal ze szczegółami
     const [selectedRecord, setSelectedRecord] =
         useState<AttendanceRecord | null>(null);
     const [selectedEntry, setSelectedEntry] = useState<AttendanceEntry | null>(
         null
     );
     const [showDetailsModal, setShowDetailsModal] = useState(false);
-
-    // Statystyki obliczane z rzeczywistych danych
+    const [showExcuseModal, setShowExcuseModal] = useState(false);
     const [stats, setStats] = useState({
         present: 0,
         late: 0,
@@ -45,53 +126,29 @@ export default function Attendance() {
         percentage: "—",
     });
 
-    const SCROLL_THRESHOLD = 80; // px after which compact header appears
-    const bg = theme === "dark" ? "#000" : "#fff";
-    const textClass = theme === "dark" ? "text-white" : "text-black";
+    const SCROLL_THRESHOLD = 80;
 
-    // Funkcja do obliczania statystyk z danych
     const calculateStats = (records: AttendanceEntry[]) => {
         let present = 0;
         let late = 0;
         let absent = 0;
         let excused = 0;
 
-        console.log(
-            "[attendance] calculateStats - analyzing",
-            records.length,
-            "records"
-        );
-
-        records.forEach((entry, index) => {
+        records.forEach((entry) => {
             const status = entry.status;
-            console.log(`[attendance] Record ${index}: status="${status}"`);
 
-            // Dokładne dopasowanie statusów
             if (status === "Obecny") present++;
             else if (status === "Spóźniony") late++;
             else if (status === "Usprawiedliwiony" || status === "Zwolnienie") {
-                // Usprawiedliwienia (including zwolnienia) should be displayed
-                // but counted as absence for the attendance percentage.
                 excused++;
                 absent++;
             } else if (status === "Nieobecny") absent++;
-            else {
-                console.warn("[attendance] Unknown status:", status);
-            }
-        });
-
-        console.log("[attendance] Stats:", {
-            present,
-            late,
-            absent,
-            excused,
-            total: records.length,
         });
 
         const total = records.length;
-        const attendedCount = present + late; // Obecności + Spóźnienia liczą się jako obecność
+        const attendedCount = present + late;
         const percentage =
-            total > 0 ? ((attendedCount / total) * 100).toFixed(1) + "%" : "—";
+            total > 0 ? `${((attendedCount / total) * 100).toFixed(1)}%` : "—";
 
         setStats({
             present,
@@ -105,41 +162,43 @@ export default function Attendance() {
 
     const fetchData = async () => {
         if (!user) return;
+
         const studentId = (user.serverId ?? user.id) as number | undefined;
         if (!studentId) return;
+
         setRefreshing(true);
+
         try {
             const res = await getUserAttendance(studentId);
-            // Sortuj od najnowszej do najstarszej
-            const sorted = res.recent.sort((a, b) => {
+            const sorted = [...res.recent].sort((a, b) => {
                 const dateA = new Date(a.date).getTime();
                 const dateB = new Date(b.date).getTime();
-                return dateB - dateA; // Odwrotna kolejność (najnowsze najpierw)
+                return dateB - dateA;
             });
+
             setEntries(sorted);
             calculateStats(sorted);
+        } catch (error) {
+            console.error("[attendance] Failed to fetch attendance:", error);
+            setEntries([]);
+            calculateStats([]);
         } finally {
             setRefreshing(false);
         }
     };
 
-
-
     const handleRecordClick = async (entry: AttendanceEntry) => {
-        if (!entry.id) {
-            console.warn("[attendance] No ID for entry", entry);
-            return;
-        }
+        setSelectedEntry(entry);
+        setSelectedRecord(null);
+        setShowDetailsModal(true);
+
+        if (!entry.id) return;
 
         try {
             const fullRecord = await getAttendanceById(entry.id);
-            if (fullRecord) {
-                setSelectedRecord(fullRecord);
-                setSelectedEntry(entry); // Zapisz też entry ze zmapowanym statusem
-                setShowDetailsModal(true);
-            }
-        } catch (e) {
-            console.error("[attendance] Error fetching record details:", e);
+            setSelectedRecord(fullRecord);
+        } catch (error) {
+            console.error("[attendance] Error fetching record details:", error);
         }
     };
 
@@ -148,212 +207,691 @@ export default function Attendance() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, user?.serverId]);
 
-    const statusColor = (s: AttendanceEntry["status"]) =>
-        s === "Obecny"
-            ? theme === "dark"
-                ? "text-green-400"
-                : "text-green-600"
-            : s === "Spóźniony"
-            ? theme === "dark"
-                ? "text-amber-400"
-                : "text-amber-600"
-            : s === "Usprawiedliwiony" || s === "Zwolnienie"
-            ? theme === "dark"
-                ? "text-blue-400"
-                : "text-blue-600"
-            : theme === "dark"
-            ? "text-red-400"
-            : "text-red-600";
+    const statItems = [
+        {
+            label: "Obecnosci",
+            value: stats.present,
+            tone: {
+                backgroundColor: "rgba(255,255,255,0.16)",
+                color: "#f4fff7",
+            },
+        },
+        {
+            label: "Spoznienia",
+            value: stats.late,
+            tone: {
+                backgroundColor: "rgba(255,255,255,0.12)",
+                color: "#fff2d7",
+            },
+        },
+        {
+            label: "Nieobecnosci",
+            value: stats.absent,
+            tone: {
+                backgroundColor: "rgba(255,255,255,0.12)",
+                color: "#ffe3dc",
+            },
+        },
+        {
+            label: "Uspraw.",
+            value: stats.excused,
+            tone: {
+                backgroundColor: "rgba(255,255,255,0.14)",
+                color: "#e8f1ff",
+            },
+        },
+    ];
+
+    const modalTone = getStatusTone(selectedEntry?.status ?? "", palette);
+    const subjectSummaries = useMemo(() => {
+        const groups = new Map<
+            string,
+            {
+                present: number;
+                late: number;
+                absent: number;
+                excused: number;
+                total: number;
+            }
+        >();
+
+        (entries ?? []).forEach((entry) => {
+            const current = groups.get(entry.subject) ?? {
+                present: 0,
+                late: 0,
+                absent: 0,
+                excused: 0,
+                total: 0,
+            };
+
+            current.total += 1;
+
+            if (entry.status === "Obecny") current.present += 1;
+            else if (entry.status === "Spóźniony") current.late += 1;
+            else if (
+                entry.status === "Usprawiedliwiony" ||
+                entry.status === "Zwolnienie"
+            ) {
+                current.excused += 1;
+                current.absent += 1;
+            } else if (entry.status === "Nieobecny") {
+                current.absent += 1;
+            }
+
+            groups.set(entry.subject, current);
+        });
+
+        return Array.from(groups.entries())
+            .map(([subject, values]) => {
+                const percentage =
+                    values.total > 0
+                        ? ((values.present + values.late) / values.total) * 100
+                        : 0;
+
+                return {
+                    subject,
+                    ...values,
+                    percentage,
+                    status:
+                        percentage < 75 || values.absent >= 2
+                            ? "critical"
+                            : percentage < 90
+                              ? "warning"
+                              : "safe",
+                };
+            })
+            .sort((left, right) => left.percentage - right.percentage);
+    }, [entries]);
+    const criticalSubjects = subjectSummaries.filter(
+        (subject) => subject.status === "critical"
+    );
+
+    const renderDetailRow = (label: string, value: string) => (
+        <View
+            style={[
+                styles.detailRow,
+                {
+                    backgroundColor: palette.pageSection,
+                },
+            ]}
+        >
+            <Text style={[editorialType.meta, { color: palette.textSoft }]}>
+                {label}
+            </Text>
+            <Text
+                style={[
+                    editorialType.body,
+                    styles.detailValue,
+                    { color: palette.text },
+                ]}
+            >
+                {value}
+            </Text>
+        </View>
+    );
 
     return (
-        <ScrollView
-            stickyHeaderIndices={[0]}
-            style={{ flex: 1, backgroundColor: bg }}
-            refreshControl={
-                <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={fetchData}
-                    tintColor={theme === "dark" ? "#fff" : "#000"}
-                />
-            }
-            onScroll={(e) => {
-                const y = e.nativeEvent.contentOffset.y;
-                setShowCompact(y > SCROLL_THRESHOLD);
-            }}
-            scrollEventThrottle={16}
-            contentContainerStyle={{ paddingBottom: 120 }}
-            showsVerticalScrollIndicator={false}
-        >
-            {/* Header as direct child for sticky behavior */}
-            <Header title="Frekwencja" subtitle="Podsumowanie frekwencji">
-                {showCompact && (
-                    <View className="flex-row items-center gap-3">
-                        <View className="flex-row items-center gap-1.5">
-                            <Text className={`${textClass} text-lg font-bold`}>
+        <>
+            <ScrollView
+                stickyHeaderIndices={[0]}
+                style={{ flex: 1, backgroundColor: palette.background }}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={fetchData}
+                        tintColor={palette.primary}
+                    />
+                }
+                onScroll={(event) => {
+                    const compact =
+                        event.nativeEvent.contentOffset.y > SCROLL_THRESHOLD;
+                    setShowCompact((current) =>
+                        current === compact ? current : compact
+                    );
+                }}
+                scrollEventThrottle={16}
+                contentContainerStyle={{ paddingBottom: 144 }}
+                showsVerticalScrollIndicator={false}
+            >
+                <Header
+                    title="Frekwencja"
+                    subtitle="Spokojny, redakcyjny podglad obecnosci i nieobecnosci"
+                >
+                    {showCompact ? (
+                        <View>
+                            <Text
+                                style={[
+                                    editorialType.title,
+                                    { color: palette.text, textAlign: "center" },
+                                ]}
+                            >
                                 {stats.percentage}
                             </Text>
+                            <Text
+                                style={[
+                                    editorialType.meta,
+                                    {
+                                        color: palette.textSoft,
+                                        marginTop: 2,
+                                        textAlign: "center",
+                                    },
+                                ]}
+                            >
+                                {stats.total} wpisow
+                            </Text>
                         </View>
-                    </View>
-                )}
-            </Header>
+                    ) : null}
+                </Header>
 
-            <View>
-                {/* Title + attendance card */}
-                <View className="px-4 mt-4">
-                    <Card className="my-4 w-full h-44 overflow-hidden">
-                        <View className="flex-row items-center h-full px-2">
-                            <View className="flex-1 p-4 items-center justify-center">
-                                <Text
-                                    className={`${
-                                        theme === "dark"
-                                            ? "text-gray-400"
-                                            : "text-gray-600"
-                                    } text-lg`}
-                                >
-                                    Frekwencja
-                                </Text>
-                                <Text
-                                    className={`${textClass} text-5xl font-bold mt-2`}
-                                >
-                                    {stats.percentage}
-                                </Text>
+                <View style={styles.page}>
+                    <View style={styles.heroSection}>
+                        <Card
+                            style={[
+                                styles.heroCard,
+                                { backgroundColor: palette.primary },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.heroGlowLarge,
+                                    {
+                                        backgroundColor: palette.primaryContainer,
+                                    },
+                                ]}
+                            />
+                            <View style={styles.heroGlowSmall} />
 
-                                <View className="mt-3 flex-row px-1">
-                                    <View
-                                        className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${
-                                            theme === "dark"
-                                                ? "bg-neutral-900 border border-neutral-800"
-                                                : "bg-gray-100 border border-gray-200"
-                                        }`}
+                            <View style={styles.heroTopRow}>
+                                <View
+                                    style={[
+                                        styles.heroBadge,
+                                        styles.heroBadgeLeft,
+                                    ]}
+                                >
+                                    <Text
+                                        style={[
+                                            editorialType.meta,
+                                            {
+                                                color: "rgba(255,255,255,0.84)",
+                                            },
+                                        ]}
                                     >
-                                        <Text className="text-green-400 text-lg font-bold">
-                                            {stats.present}
-                                        </Text>
-                                        <Text
-                                            className={`${
-                                                theme === "dark"
-                                                    ? "text-gray-500"
-                                                    : "text-gray-600 "
-                                            } text-xs`}
-                                        >
-                                            Obecności
-                                        </Text>
-                                    </View>
-                                    <View
-                                        className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${
-                                            theme === "dark"
-                                                ? "bg-neutral-900 border border-neutral-800"
-                                                : "bg-gray-100 border border-gray-200"
-                                        }`}
+                                        Attendance Mode
+                                    </Text>
+                                </View>
+
+                                <View style={styles.heroBadge}>
+                                    <Text
+                                        style={[
+                                            editorialType.meta,
+                                            {
+                                                color: "rgba(255,255,255,0.84)",
+                                            },
+                                        ]}
                                     >
-                                        <Text className="text-amber-400 text-lg font-bold">
-                                            {stats.late}
-                                        </Text>
-                                        <Text
-                                            className={`${
-                                                theme === "dark"
-                                                    ? "text-gray-500"
-                                                    : "text-gray-600"
-                                            } text-xs`}
-                                        >
-                                            Spóźnienia
-                                        </Text>
-                                    </View>
-                                    <View
-                                        className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${
-                                            theme === "dark"
-                                                ? "bg-neutral-900 border border-neutral-800"
-                                                : "bg-gray-100 border border-gray-200"
-                                        }`}
-                                    >
-                                        <Text className="text-red-400 text-lg font-bold">
-                                            {stats.absent}
-                                        </Text>
-                                        <Text
-                                            className={`${
-                                                theme === "dark"
-                                                    ? "text-gray-500"
-                                                    : "text-gray-600"
-                                            } text-xs`}
-                                        >
-                                            Nieobecności
-                                        </Text>
-                                    </View>
-                                    <View
-                                        className={`flex-1 mx-1 rounded-lg items-center pt-3 h-16 ${
-                                            theme === "dark"
-                                                ? "bg-neutral-900 border border-neutral-800"
-                                                : "bg-gray-100 border border-gray-200"
-                                        }`}
-                                    >
-                                        <Text className="text-blue-400 text-lg font-bold">
-                                            {stats.excused}
-                                        </Text>
-                                        <Text
-                                            className={`${
-                                                theme === "dark"
-                                                    ? "text-gray-500"
-                                                    : "text-gray-600"
-                                            } text-xs`}
-                                        >
-                                            Uspraw.
-                                        </Text>
-                                    </View>
+                                        {stats.total} wpisow
+                                    </Text>
                                 </View>
                             </View>
-                        </View>
-                    </Card>
-                </View>
 
-                <View className="px-4 mt-4">
-                    <Text className={`${textClass} text-2xl`}>
-                        Ostatnia frekwencja:
-                    </Text>
-                    {entries && entries.length > 0 ? (
-                        entries.map((it, idx) => (
-                            <TouchableOpacity
-                                key={idx}
-                                onPress={() => handleRecordClick(it)}
+                            <Text
+                                style={[
+                                    editorialType.sectionLabel,
+                                    {
+                                        color: "rgba(255,255,255,0.74)",
+                                        marginBottom: 8,
+                                    },
+                                ]}
                             >
-                                <Card className="mt-3 p-4">
-                                    <View className="flex-row items-center justify-between">
+                                Frekwencja ogolna
+                            </Text>
+                            <Text
+                                style={[
+                                    editorialType.display,
+                                    {
+                                        color: palette.onPrimary,
+                                    },
+                                ]}
+                            >
+                                {stats.percentage}
+                            </Text>
+                            <Text
+                                style={[
+                                    editorialType.body,
+                                    {
+                                        color: "rgba(255,255,255,0.76)",
+                                        marginTop: 14,
+                                        maxWidth: "86%",
+                                    },
+                                ]}
+                            >
+                                {getAttendanceNarrative(
+                                    stats.percentage,
+                                    stats.total,
+                                    stats.absent
+                                )}
+                            </Text>
+
+                            <TouchableOpacity
+                                onPress={() => setShowExcuseModal(true)}
+                                activeOpacity={0.9}
+                                style={[
+                                    styles.heroActionButton,
+                                    { backgroundColor: "rgba(255,255,255,0.14)" },
+                                ]}
+                            >
+                                <Text
+                                    style={[
+                                        editorialType.meta,
+                                        { color: palette.onPrimary },
+                                    ]}
+                                >
+                                    Usprawiedliw nieobecnosc
+                                </Text>
+                            </TouchableOpacity>
+
+                            <View style={styles.heroStatsGrid}>
+                                {statItems.map((item) => (
+                                    <View
+                                        key={item.label}
+                                        style={[
+                                            styles.heroStatCard,
+                                            {
+                                                backgroundColor:
+                                                    item.tone.backgroundColor,
+                                            },
+                                        ]}
+                                    >
                                         <Text
-                                            className={`${textClass} text-base font-medium`}
+                                            style={[
+                                                editorialType.title,
+                                                { color: item.tone.color },
+                                            ]}
                                         >
-                                            {it.subject}
+                                            {item.value}
                                         </Text>
                                         <Text
-                                            className={`${statusColor(
-                                                it.status
-                                            )} text-base`}
+                                            style={[
+                                                editorialType.meta,
+                                                {
+                                                    color: "rgba(255,255,255,0.72)",
+                                                    marginTop: 4,
+                                                },
+                                            ]}
                                         >
-                                            {it.status}
+                                            {item.label}
                                         </Text>
                                     </View>
-                                    <Text
-                                        className={`${
-                                            theme === "dark"
-                                                ? "text-gray-400"
-                                                : "text-gray-600"
-                                        } mt-1`}
-                                    >
-                                        {new Date(it.date).toLocaleDateString(
-                                            "pl-PL"
-                                        )}
-                                    </Text>
-                                </Card>
-                            </TouchableOpacity>
-                        ))
-                    ) : (
-                        <EmptyState
-                            icon={<></>}
-                            title="Brak danych"
-                        />
-                    )}
-                </View>
-            </View>
+                                ))}
+                            </View>
+                        </Card>
+                    </View>
 
-            {/* Modal ze szczegółami frekwencji */}
+                    <View style={{ marginTop: 30 }}>
+                        <EditorialSectionHeader
+                            eyebrow="Dziennik obecnosci"
+                            title="Ostatnie wpisy"
+                            meta={(entries?.length ?? 0).toString().padStart(2, "0")}
+                        />
+
+                        {entries && entries.length > 0 ? (
+                            <View style={styles.listWrap}>
+                                {entries.map((entry, index) => {
+                                    const tone = getStatusTone(
+                                        entry.status,
+                                        palette
+                                    );
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={`${entry.id ?? "attendance"}-${index}`}
+                                            onPress={() => handleRecordClick(entry)}
+                                            activeOpacity={0.88}
+                                            style={{
+                                                marginTop: index === 0 ? 0 : 12,
+                                            }}
+                                        >
+                                            <Card
+                                                style={{
+                                                    backgroundColor:
+                                                        index % 2 === 0
+                                                            ? palette.surface
+                                                            : palette.pageSection,
+                                                }}
+                                            >
+                                                <View style={styles.entryCardInner}>
+                                                    <View
+                                                        style={[
+                                                            styles.entryInitial,
+                                                            {
+                                                                backgroundColor:
+                                                                    tone.soft,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        <Text
+                                                            style={[
+                                                                editorialType.title,
+                                                                { color: tone.text },
+                                                            ]}
+                                                        >
+                                                            {getStatusInitial(
+                                                                entry.status
+                                                            )}
+                                                        </Text>
+                                                    </View>
+
+                                                    <View
+                                                        style={{
+                                                            flex: 1,
+                                                            paddingRight: 12,
+                                                        }}
+                                                    >
+                                                        <Text
+                                                            style={[
+                                                                editorialType.title,
+                                                                {
+                                                                    color: palette.text,
+                                                                    marginBottom: 6,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            {entry.subject}
+                                                        </Text>
+                                                        <Text
+                                                            style={[
+                                                                editorialType.body,
+                                                                {
+                                                                    color: palette.textMuted,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            {formatAttendanceDate(
+                                                                entry.date
+                                                            )}
+                                                        </Text>
+                                                    </View>
+
+                                                    <View
+                                                        style={{
+                                                            alignItems: "flex-end",
+                                                        }}
+                                                    >
+                                                        <View
+                                                            style={[
+                                                                styles.statusChip,
+                                                                {
+                                                                    backgroundColor:
+                                                                        tone.soft,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            <Text
+                                                                style={[
+                                                                    editorialType.meta,
+                                                                    {
+                                                                        color: tone.text,
+                                                                    },
+                                                                ]}
+                                                            >
+                                                                {entry.status}
+                                                            </Text>
+                                                        </View>
+                                                        <Text
+                                                            style={[
+                                                                editorialType.meta,
+                                                                {
+                                                                    color: palette.textSoft,
+                                                                    marginTop: 10,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            Szczegoly
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </Card>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        ) : (
+                            <View style={{ marginTop: 16 }}>
+                                <EmptyState
+                                    title="Brak wpisow frekwencji"
+                                    subtitle="Nowe obecnosci i nieobecnosci pojawia sie tutaj po synchronizacji."
+                                />
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={{ marginTop: 30 }}>
+                        <EditorialSectionHeader
+                            eyebrow="Ryzyko"
+                            title="Frekwencja krytyczna"
+                            meta={String(criticalSubjects.length)}
+                        />
+
+                        {criticalSubjects.length > 0 ? (
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ paddingRight: 8 }}
+                            >
+                                {criticalSubjects.map((subject, index) => (
+                                    <View
+                                        key={subject.subject}
+                                        style={{
+                                            marginRight:
+                                                index === criticalSubjects.length - 1
+                                                    ? 0
+                                                    : 12,
+                                        }}
+                                    >
+                                        <EditorialPanel
+                                            style={[
+                                                styles.criticalCard,
+                                                { backgroundColor: palette.surface },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    editorialType.meta,
+                                                    { color: palette.textSoft },
+                                                ]}
+                                            >
+                                                {subject.subject}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    editorialType.headline,
+                                                    {
+                                                        color: palette.dangerText,
+                                                        fontSize: 24,
+                                                        lineHeight: 28,
+                                                        marginTop: 8,
+                                                    },
+                                                ]}
+                                            >
+                                                {subject.percentage.toFixed(0)}%
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    editorialType.body,
+                                                    { color: palette.textMuted, marginTop: 8 },
+                                                ]}
+                                            >
+                                                {subject.absent} nieobecnosci, {subject.late} spoznien
+                                            </Text>
+                                        </EditorialPanel>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        ) : (
+                            <EmptyState
+                                title="Brak zagrozen"
+                                subtitle="Na ten moment zaden przedmiot nie zbliza sie do krytycznej frekwencji."
+                            />
+                        )}
+                    </View>
+
+                    <View style={{ marginTop: 30 }}>
+                        <EditorialSectionHeader
+                            eyebrow="Wedlug przedmiotow"
+                            title="Frekwencja wedlug przedmiotow"
+                            meta={String(subjectSummaries.length)}
+                        />
+
+                        {subjectSummaries.length > 0 ? (
+                            subjectSummaries.map((subject, index) => {
+                                const progressColor =
+                                    subject.status === "critical"
+                                        ? palette.danger
+                                        : subject.status === "warning"
+                                          ? palette.warning
+                                          : palette.success;
+
+                                return (
+                                    <View
+                                        key={subject.subject}
+                                        style={{ marginTop: index === 0 ? 0 : 12 }}
+                                    >
+                                        <EditorialPanel>
+                                            <View style={styles.subjectRow}>
+                                                <View style={{ flex: 1, paddingRight: 12 }}>
+                                                    <Text
+                                                        style={[
+                                                            editorialType.title,
+                                                            { color: palette.text },
+                                                        ]}
+                                                    >
+                                                        {subject.subject}
+                                                    </Text>
+                                                    <Text
+                                                        style={[
+                                                            editorialType.body,
+                                                            {
+                                                                color: palette.textMuted,
+                                                                marginTop: 6,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {subject.present} obecnosci, {subject.absent} nieobecnosci, {subject.late} spoznien
+                                                    </Text>
+                                                    <View
+                                                        style={[
+                                                            styles.progressTrack,
+                                                            { backgroundColor: palette.pageSection },
+                                                        ]}
+                                                    >
+                                                        <View
+                                                            style={[
+                                                                styles.progressFill,
+                                                                {
+                                                                    width: `${Math.max(
+                                                                        8,
+                                                                        subject.percentage
+                                                                    )}%`,
+                                                                    backgroundColor: progressColor,
+                                                                },
+                                                            ]}
+                                                        />
+                                                    </View>
+                                                </View>
+
+                                                <View style={{ alignItems: "flex-end" }}>
+                                                    <Text
+                                                        style={[
+                                                            editorialType.headline,
+                                                            {
+                                                                color: progressColor,
+                                                                fontSize: 24,
+                                                                lineHeight: 28,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {subject.percentage.toFixed(0)}%
+                                                    </Text>
+                                                    <Text
+                                                        style={[
+                                                            editorialType.meta,
+                                                            { color: palette.textSoft, marginTop: 4 },
+                                                        ]}
+                                                    >
+                                                        Caly rok
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </EditorialPanel>
+                                    </View>
+                                );
+                            })
+                        ) : (
+                            <EmptyState
+                                title="Brak danych przedmiotowych"
+                                subtitle="Sekcja pojawi sie, gdy system zbierze wpisy dla konkretnych zajec."
+                            />
+                        )}
+                    </View>
+
+                </View>
+            </ScrollView>
+
+            <Modal
+                visible={showExcuseModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowExcuseModal(false)}
+            >
+                <View
+                    style={[
+                        styles.modalScrim,
+                        { backgroundColor: palette.scrim },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.modalCard,
+                            { backgroundColor: palette.surface },
+                            getEditorialShadow(theme, "floating"),
+                        ]}
+                    >
+                        <Text
+                            style={[
+                                editorialType.headline,
+                                { color: palette.text, fontSize: 24, lineHeight: 28 },
+                            ]}
+                        >
+                            Usprawiedliwienie
+                        </Text>
+                        <Text
+                            style={[
+                                editorialType.body,
+                                { color: palette.textMuted, marginTop: 12 },
+                            ]}
+                        >
+                            Usprawiedliwienia skladane sa przez rodzica lub wychowawce.
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => setShowExcuseModal(false)}
+                            style={[
+                                styles.closeButton,
+                                { backgroundColor: palette.primary },
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    editorialType.meta,
+                                    { color: palette.onPrimary },
+                                ]}
+                            >
+                                Rozumiem
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             <Modal
                 visible={showDetailsModal}
                 transparent
@@ -361,282 +899,287 @@ export default function Attendance() {
                 onRequestClose={() => setShowDetailsModal(false)}
             >
                 <View
-                    style={{
-                        flex: 1,
-                        backgroundColor: "rgba(0,0,0,0.45)",
-                        justifyContent: "center",
-                        padding: 20,
-                    }}
+                    style={[
+                        styles.modalScrim,
+                        { backgroundColor: palette.scrim },
+                    ]}
                 >
                     <View
-                        style={{
-                            backgroundColor: bg,
-                            borderRadius: 14,
-                            padding: 16,
-                            shadowColor: "#000",
-                            shadowOpacity: 0.2,
-                            shadowRadius: 10,
-                        }}
+                        style={[
+                            styles.modalCard,
+                            { backgroundColor: palette.surface },
+                            getEditorialShadow(theme, "floating"),
+                        ]}
                     >
-                        {selectedRecord && selectedEntry && (
+                        {selectedEntry ? (
                             <>
-                                {/* Header: ikona statusu + tytuł */}
-                                <View
-                                    style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        gap: 12,
-                                        marginBottom: 12,
-                                    }}
-                                >
+                                <View style={styles.modalHeader}>
                                     <View
-                                        style={{
-                                            width: 64,
-                                            height: 64,
-                                            borderRadius: 32,
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            backgroundColor:
-                                                                                                    (selectedEntry.status === "Obecny"
-                                                                                                            ? "#16A34A"
-                                                                                                            : selectedEntry.status === "Spóźniony"
-                                                                                                            ? "#F59E0B"
-                                                                                                            : selectedEntry.status === "Usprawiedliwiony" || selectedEntry.status === "Zwolnienie"
-                                                                                                            ? "#3B82F6"
-                                                                                                            : "#EF4444"),
-                                        }}
+                                        style={[
+                                            styles.modalIcon,
+                                            {
+                                                backgroundColor:
+                                                    modalTone.soft,
+                                            },
+                                        ]}
                                     >
                                         <Text
-                                            style={{
-                                                color: "#fff",
-                                                fontSize: 28,
-                                                fontWeight: "800",
-                                            }}
+                                            style={[
+                                                editorialType.headline,
+                                                {
+                                                    color: modalTone.text,
+                                                    fontSize: 24,
+                                                    lineHeight: 28,
+                                                },
+                                            ]}
                                         >
-                                                                                        {selectedEntry.status === "Obecny"
-                                                                                                ? "O"
-                                                                                                : selectedEntry.status === "Spóźniony"
-                                                                                                ? "S"
-                                                                                                : selectedEntry.status === "Zwolnienie"
-                                                                                                ? "Z"
-                                                                                                : selectedEntry.status === "Usprawiedliwiony"
-                                                                                                ? "U"
-                                                                                                : "N"}
+                                            {getStatusInitial(
+                                                selectedEntry.status
+                                            )}
                                         </Text>
                                     </View>
+
                                     <View style={{ flex: 1 }}>
                                         <Text
-                                            style={{
-                                                fontSize: 16,
-                                                fontWeight: "700",
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#fff"
-                                                        : "#111",
-                                            }}
+                                            style={[
+                                                editorialType.sectionLabel,
+                                                {
+                                                    color: palette.textSoft,
+                                                    marginBottom: 4,
+                                                },
+                                            ]}
                                         >
-                                            Szczegóły frekwencji
+                                            Attendance Detail
                                         </Text>
                                         <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#9CA3AF"
-                                                        : "#6B7280",
-                                                marginTop: 2,
-                                                fontSize: 13,
-                                            }}
-                                        >
-                                            {new Date(
-                                                selectedRecord.data
-                                            ).toLocaleDateString("pl-PL", {
-                                                day: "2-digit",
-                                                month: "2-digit",
-                                                year: "numeric",
-                                            })}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <View
-                                    style={{
-                                        height: 1,
-                                        backgroundColor:
-                                            theme === "dark"
-                                                ? "#111827"
-                                                : "#E5E7EB",
-                                        marginBottom: 12,
-                                    }}
-                                />
-
-                                {/* Informacje szczegółowe */}
-                                <View>
-                                    <View
-                                        style={{
-                                            flexDirection: "row",
-                                            justifyContent: "space-between",
-                                            marginBottom: 8,
-                                        }}
-                                    >
-                                        <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#9CA3AF"
-                                                        : "#6B7280",
-                                            }}
-                                        >
-                                            Status
-                                        </Text>
-                                        <Text
-                                            style={{
-                                                color:
-                                                                                                            selectedEntry.status === "Obecny"
-                                                                                                                    ? "#16A34A"
-                                                                                                                    : selectedEntry.status === "Spóźniony"
-                                                                                                                    ? "#F59E0B"
-                                                                                                                    : selectedEntry.status === "Zwolnienie"
-                                                                                                                    ? "#3B82F6"
-                                                                                                                    : selectedEntry.status === "Usprawiedliwiony"
-                                                                                                                    ? "#3B82F6"
-                                                                                                                    : "#EF4444",
-                                                fontWeight: "700",
-                                            }}
+                                            style={[
+                                                editorialType.headline,
+                                                {
+                                                    color: palette.text,
+                                                    fontSize: 26,
+                                                    lineHeight: 30,
+                                                },
+                                            ]}
                                         >
                                             {selectedEntry.status}
                                         </Text>
-                                    </View>
-
-                                    <View
-                                        style={{
-                                            flexDirection: "row",
-                                            justifyContent: "space-between",
-                                            marginBottom: 8,
-                                        }}
-                                    >
                                         <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#9CA3AF"
-                                                        : "#6B7280",
-                                            }}
+                                            style={[
+                                                editorialType.body,
+                                                {
+                                                    color: palette.textMuted,
+                                                    marginTop: 6,
+                                                },
+                                            ]}
                                         >
-                                            Przedmiot
-                                        </Text>
-                                        <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#fff"
-                                                        : "#111",
-                                            }}
-                                        >
-                                            {selectedRecord.przedmiot ||
-                                                selectedEntry.subject ||
-                                                "Matematyka"}
-                                        </Text>
-                                    </View>
-
-                                    <View
-                                        style={{
-                                            flexDirection: "row",
-                                            justifyContent: "space-between",
-                                            marginBottom: 8,
-                                        }}
-                                    >
-                                        <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#9CA3AF"
-                                                        : "#6B7280",
-                                            }}
-                                        >
-                                            Nauczyciel
-                                        </Text>
-                                        <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#fff"
-                                                        : "#111",
-                                            }}
-                                        >
-                                            Jan Kowalski
-                                        </Text>
-                                    </View>
-
-                                    <View
-                                        style={{
-                                            flexDirection: "row",
-                                            justifyContent: "space-between",
-                                            marginBottom: 4,
-                                        }}
-                                    >
-                                        <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#9CA3AF"
-                                                        : "#6B7280",
-                                            }}
-                                        >
-                                            Godzina lekcyjna
-                                        </Text>
-                                        <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#fff"
-                                                        : "#111",
-                                            }}
-                                        >
-                                            Lekcja #
-                                            {selectedRecord.godzina_lekcyjna_id}
+                                            {formatAttendanceDate(
+                                                selectedRecord?.data ??
+                                                    selectedEntry.date
+                                            )}
                                         </Text>
                                     </View>
                                 </View>
 
-                                <View
-                                    style={{
-                                        flexDirection: "row",
-                                        justifyContent: "flex-end",
-                                        marginTop: 14,
-                                        gap: 8,
-                                    }}
+                                <View style={styles.detailStack}>
+                                    {renderDetailRow(
+                                        "Przedmiot",
+                                        selectedRecord?.przedmiot ??
+                                            selectedEntry.subject ??
+                                            "Brak danych"
+                                    )}
+                                    {renderDetailRow(
+                                        "Status",
+                                        selectedEntry.status
+                                    )}
+                                    {renderDetailRow(
+                                        "Nauczyciel",
+                                        selectedRecord?.nauczyciel ??
+                                            "Brak danych"
+                                    )}
+                                    {renderDetailRow(
+                                        "Godzina lekcyjna",
+                                        selectedRecord?.godzina_lekcyjna_id
+                                            ? `Lekcja #${selectedRecord.godzina_lekcyjna_id}`
+                                            : "Brak danych"
+                                    )}
+                                </View>
+
+                                <TouchableOpacity
+                                    onPress={() => setShowDetailsModal(false)}
+                                    style={[
+                                        styles.closeButton,
+                                        {
+                                            backgroundColor: palette.primary,
+                                        },
+                                    ]}
+                                    activeOpacity={0.9}
                                 >
-                                    <TouchableOpacity
-                                        onPress={() =>
-                                            setShowDetailsModal(false)
-                                        }
-                                        style={{
-                                            paddingHorizontal: 12,
-                                            paddingVertical: 8,
-                                            borderRadius: 8,
-                                            backgroundColor:
-                                                theme === "dark"
-                                                    ? "#111827"
-                                                    : "#F3F4F6",
-                                        }}
+                                    <Text
+                                        style={[
+                                            editorialType.meta,
+                                            { color: palette.onPrimary },
+                                        ]}
                                     >
-                                        <Text
-                                            style={{
-                                                color:
-                                                    theme === "dark"
-                                                        ? "#E5E7EB"
-                                                        : "#111",
-                                            }}
-                                        >
-                                            Zamknij
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
+                                        Zamknij
+                                    </Text>
+                                </TouchableOpacity>
                             </>
-                        )}
+                        ) : null}
                     </View>
                 </View>
             </Modal>
-        </ScrollView>
+        </>
     );
 }
+
+const styles = StyleSheet.create({
+    page: {
+        paddingHorizontal: 16,
+        paddingTop: 6,
+    },
+    heroSection: {
+        marginTop: 8,
+    },
+    heroCard: {
+        overflow: "hidden",
+        padding: 22,
+        minHeight: 336,
+    },
+    heroGlowLarge: {
+        position: "absolute",
+        width: 240,
+        height: 240,
+        borderRadius: 120,
+        top: -64,
+        right: -72,
+        opacity: 0.42,
+    },
+    heroGlowSmall: {
+        position: "absolute",
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        bottom: 36,
+        right: 28,
+        backgroundColor: "rgba(255,255,255,0.08)",
+    },
+    heroTopRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 24,
+    },
+    heroBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: "rgba(255,255,255,0.12)",
+    },
+    heroBadgeLeft: {
+        alignSelf: "flex-start",
+    },
+    heroStatsGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        marginTop: 22,
+        rowGap: 10,
+    },
+    heroActionButton: {
+        alignSelf: "flex-start",
+        minHeight: 44,
+        borderRadius: 999,
+        justifyContent: "center",
+        paddingHorizontal: 16,
+        marginTop: 16,
+    },
+    heroStatCard: {
+        width: "48.4%",
+        borderRadius: 18,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+    },
+    listWrap: {
+        paddingBottom: 8,
+    },
+    criticalCard: {
+        width: 188,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+    },
+    subjectRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 18,
+        paddingVertical: 18,
+    },
+    progressTrack: {
+        height: 8,
+        borderRadius: 999,
+        overflow: "hidden",
+        marginTop: 12,
+    },
+    progressFill: {
+        height: 8,
+        borderRadius: 999,
+    },
+    entryCardInner: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 18,
+        paddingVertical: 18,
+    },
+    entryInitial: {
+        width: 52,
+        height: 52,
+        borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 14,
+    },
+    statusChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+    },
+    modalScrim: {
+        flex: 1,
+        justifyContent: "center",
+        paddingHorizontal: 20,
+    },
+    modalCard: {
+        borderRadius: 28,
+        padding: 22,
+    },
+    modalHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    modalIcon: {
+        width: 72,
+        height: 72,
+        borderRadius: 24,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 16,
+    },
+    detailStack: {
+        marginTop: 22,
+        gap: 10,
+    },
+    detailRow: {
+        borderRadius: 18,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    detailValue: {
+        marginTop: 6,
+    },
+    closeButton: {
+        marginTop: 24,
+        borderRadius: 999,
+        minHeight: 52,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+});

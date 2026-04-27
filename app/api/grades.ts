@@ -6,6 +6,7 @@ export type GradeItem = {
   weight?: number; // default 1 (internal, not shown in UI)
   date: string; // ISO date
   category?: string; // e.g., "Kartkówka", "Sprawdzian"
+  semester?: 1 | 2;
   // Whether this grade should be included when computing averages. The server
   // may provide this as `czy_do_sredniej` or similar; default is true.
   countForAverage?: boolean;
@@ -247,6 +248,27 @@ const mapServerToGrade = (it: any): GradeItem => {
   const rawDate = it.data_wystawienia ?? it.data_wystawienia_oceny ?? it.data ?? it.date ?? it.created_at ?? it.timestamp ?? it.time ?? '';
   const date = normalizeDate(rawDate);
   const category = it.kategoria ?? it.kategoria_nazwa ?? it.typ ?? it.category ?? undefined;
+  const semester = (() => {
+    const rawSemester = it.semestr ?? it.semester ?? it.okres ?? it.term ?? it.period ?? null;
+
+    if (rawSemester !== null && rawSemester !== undefined && rawSemester !== "") {
+      const normalized = String(rawSemester).trim().toLowerCase();
+      if (["1", "i", "semestr 1", "1 semestr", "i semestr", "pierwszy"].includes(normalized)) {
+        return 1 as const;
+      }
+      if (["2", "ii", "semestr 2", "2 semestr", "ii semestr", "drugi"].includes(normalized)) {
+        return 2 as const;
+      }
+    }
+
+    const parsedDate = new Date(date);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      const month = parsedDate.getMonth();
+      return month === 0 || month >= 8 ? 1 : 2;
+    }
+
+    return undefined;
+  })();
   // detect server flag which indicates whether grade counts towards average
   const countFlag = (() => {
     if (typeof it.czy_do_sredniej === 'boolean') return it.czy_do_sredniej;
@@ -259,7 +281,7 @@ const mapServerToGrade = (it: any): GradeItem => {
     if (!Number.isNaN(num)) return Boolean(num);
     return true;
   })();
-  return { value, label, weight, date, category, countForAverage: countFlag };
+  return { value, label, weight, date, category, semester, countForAverage: countFlag };
 };
 
 /**

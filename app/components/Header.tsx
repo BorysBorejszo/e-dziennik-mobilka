@@ -1,7 +1,11 @@
 import Entypo from "@expo/vector-icons/Entypo";
 import React from "react";
 import { Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    editorialType,
+    getEditorialPalette,
+    getEditorialShadow,
+} from "../theme/editorial";
 import { useTheme } from "../theme/ThemeContext";
 import { SidebarTrigger } from "./ui/sidebar";
 
@@ -13,26 +17,71 @@ type Props = {
 
 export default function Header({ title, subtitle, children }: Props) {
     const { theme } = useTheme();
-    const insets = useSafeAreaInsets();
-    const bg = theme === "dark" ? "#000" : "#fff";
-    const titleClass = theme === "dark" ? "text-white" : "text-black";
-    const subtitleClass = theme === "dark" ? "text-gray-400" : "text-gray-600";
+    const palette = getEditorialPalette(theme);
 
     return (
-        <View style={{ backgroundColor: bg, zIndex: 20}} className="px-4 pb-4">
-            <View className="flex-row items-center justify-between min-h-[64px]">
-                <View className="flex-row items-center flex-1">
-                    <SidebarTrigger style={{ marginRight: 10 }}>
-                        <Entypo name="menu" size={26} color="#60A5FA" />
-                    </SidebarTrigger>
-                    <View>
-                        <Text className={`${titleClass} text-3xl font-bold`}>{title}</Text>
-                        {subtitle ? (
-                            <Text className={`${subtitleClass} text-lg mt-1`}>{subtitle}</Text>
-                        ) : null}
+        <View style={{ backgroundColor: palette.background, zIndex: 20 }}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 18 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 12 }}>
+                        <SidebarTrigger
+                            style={[
+                                {
+                                    width: 48,
+                                    height: 48,
+                                    borderRadius: 24,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: palette.surfaceGlass,
+                                    marginRight: 14,
+                                },
+                                getEditorialShadow(theme),
+                            ]}
+                        >
+                            <Entypo name="menu" size={23} color={palette.primary} />
+                        </SidebarTrigger>
+
+                        <View style={{ flex: 1 }}>
+                            <Text style={[editorialType.eyebrow, { color: palette.textSoft, marginBottom: 6 }]}>
+                                Digital Curator
+                            </Text>
+                            <Text style={[editorialType.headline, { color: palette.text }]}>
+                                {title}
+                            </Text>
+                            {subtitle ? (
+                                <Text
+                                    style={[
+                                        editorialType.body,
+                                        {
+                                            color: palette.textMuted,
+                                            marginTop: 6,
+                                        },
+                                    ]}
+                                >
+                                    {subtitle}
+                                </Text>
+                            ) : null}
+                        </View>
                     </View>
+
+                    {children ? (
+                        <View
+                            style={[
+                                {
+                                    minHeight: 48,
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 10,
+                                    borderRadius: 18,
+                                    backgroundColor: palette.surfaceGlass,
+                                    justifyContent: "center",
+                                },
+                                getEditorialShadow(theme),
+                            ]}
+                        >
+                            {children}
+                        </View>
+                    ) : null}
                 </View>
-                {children && <View className="ml-2 items-center justify-center">{children}</View>}
             </View>
         </View>
     );

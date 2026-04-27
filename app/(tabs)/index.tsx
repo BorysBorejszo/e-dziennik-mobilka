@@ -1,488 +1,354 @@
-import Ionicons from "@expo/vector-icons/build/Ionicons";
-import { useEffect, useState } from "react";
-import {
-    LayoutAnimation,
-    Platform,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    UIManager,
-    View,
-} from "react-native";
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { getCurrentDjangoUserId, getDjangoIdFromToken } from "../api/auth";
 import { calculateWeightedAverage, getUserGrades } from "../api/grades";
 import { getUserHomeData, TodayLesson, UpdateItem } from "../api/home";
+import {
+    EditorialRowCard,
+    EditorialSectionHeader,
+    EditorialStatCard,
+} from "../components/editorial/MobileBlocks";
 import Header from "../components/Header";
-import Card from "../components/ui/Card";
+import EmptyState from "../components/ui/EmptyState";
+import { convertToDisplayMessage, getInboxMessages } from "../api/messages";
 import { useUser } from "../context/UserContext";
+import { editorialType, getEditorialPalette } from "../theme/editorial";
 import { useTheme } from "../theme/ThemeContext";
 
-export default function App() {
-    const { user, setUser } = useUser();
+function getUpdateTone(type: UpdateItem["type"]) {
+    if (type === "grade") {
+        return {
+            icon: "school-outline" as const,
+            tone: "success" as const,
+            badge: "Ocena",
+        };
+    }
+
+    if (type === "message") {
+        return {
+            icon: "mail-outline" as const,
+            tone: "primary" as const,
+            badge: "Wiadomosc",
+        };
+    }
+
+    return {
+        icon: "megaphone-outline" as const,
+        tone: "warning" as const,
+        badge: "Ogloszenie",
+    };
+}
+
+export default function Home() {
+    const { user } = useUser();
+    const { theme } = useTheme();
+    const router = useRouter();
+    const palette = getEditorialPalette(theme);
     const rawName = user?.name?.toString() ?? "";
     const firstToken = rawName.split(/[_\s]+/)[0] ?? "";
     const firstName = firstToken
         ? firstToken.charAt(0).toUpperCase() + firstToken.slice(1).toLowerCase()
-        : "Użytkownik";
+        : "Uzytkownik";
     const [todayLessons, setTodayLessons] = useState<TodayLesson[]>([]);
     const [recentUpdates, setRecentUpdates] = useState<UpdateItem[]>([]);
+    const [gradeAverage, setGradeAverage] = useState<string>("—");
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [gradeAverage, setGradeAverage] = useState<string | number | null>(
-        null
+
+    const formattedDate = useMemo(
+        () =>
+            new Date().toLocaleDateString("pl-PL", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+            }),
+        []
     );
 
-    const today = new Date();
-    const formattedDate = today.toLocaleDateString("pl-PL", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-    });
-
-    const { theme } = useTheme();
-    const bg = theme === "dark" ? "#000" : "#fff";
-    const textClass = theme === "dark" ? "text-white" : "text-black";
-
     useEffect(() => {
-        // Enable LayoutAnimation on Android
-        if (
-            Platform.OS === "android" &&
-            UIManager.setLayoutAnimationEnabledExperimental
-        ) {
-            UIManager.setLayoutAnimationEnabledExperimental(true);
+        void loadDashboard();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id, user?.serverId, user?.username]);
+
+    async function resolveMessageUserId() {
+        let attemptsUserId = Number(user?.serverId ?? user?.id ?? -1);
+
+        try {
+            const tokenId = await getDjangoIdFromToken();
+            if (tokenId) {
+                attemptsUserId = Number(tokenId);
+            } else {
+                const resolved = await getCurrentDjangoUserId();
+                if (resolved) attemptsUserId = Number(resolved);
+            }
+        } catch (error) {
+            console.warn("[home] resolving message user id failed", error);
         }
-    }, []);
 
-    useEffect(() => {
-        const fetchHomeData = async () => {
-            // Determine the best id to use for server calls: prefer serverId if present
-            const idToUse = (user as any)?.serverId ?? user?.id;
+        return attemptsUserId > 0 ? attemptsUserId : null;
+    }
 
-            // If there's no user or no valid id, clear UI state and don't call server
-            if (!user || typeof idToUse !== 'number' || idToUse <= 0) {
-                setTodayLessons([]);
-                setRecentUpdates([]);
-                setGradeAverage(null);
-                setLoading(false);
-                return;
+    async function loadDashboard() {
+        const idToUse = (user as any)?.serverId ?? user?.id;
+
+        if (!user || typeof idToUse !== "number" || idToUse <= 0) {
+            setTodayLessons([]);
+            setRecentUpdates([]);
+            setGradeAverage("—");
+            setUnreadCount(0);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const [homeData, gradesRes, messageUserId] = await Promise.all([
+                getUserHomeData(idToUse),
+                getUserGrades(idToUse).catch(() => null),
+                resolveMessageUserId(),
+            ]);
+
+            setTodayLessons(homeData.todayLessons);
+            setRecentUpdates(homeData.recentUpdates);
+
+            if (gradesRes) {
+                const all = gradesRes.subjects.flatMap((subject) => subject.grades);
+                const avg = calculateWeightedAverage(all);
+                setGradeAverage(avg ? avg.toFixed(2) : "—");
+            } else {
+                setGradeAverage("—");
             }
 
-            setLoading(true);
-            try {
-                const data = await getUserHomeData(idToUse as number);
-                setTodayLessons(data.todayLessons);
-                setRecentUpdates(data.recentUpdates);
-
-                // Also try to fetch grades summary so UI shows current average even if user.profile lacked it
-                try {
-                    const gradesRes = await getUserGrades(idToUse as number);
-                    const all = gradesRes.subjects.flatMap((s) => s.grades);
-                    const avg = calculateWeightedAverage(all);
-                    setGradeAverage(avg ?? null);
-                } catch (e) {
-                    setGradeAverage(user?.grades?.average ?? null);
-                }
-            } catch (error) {
-                console.error("Failed to fetch home data:", error);
-                setTodayLessons([]);
-                setRecentUpdates([]);
-            } finally {
-                setLoading(false);
+            if (messageUserId) {
+                const inbox = await getInboxMessages(messageUserId);
+                const displayMessages = inbox.map((record) =>
+                    convertToDisplayMessage(record, messageUserId)
+                );
+                setUnreadCount(displayMessages.filter((message) => message.unread).length);
+            } else {
+                setUnreadCount(0);
             }
-        };
+        } catch (error) {
+            console.error("[home] Failed to load dashboard", error);
+            setTodayLessons([]);
+            setRecentUpdates([]);
+            setGradeAverage("—");
+            setUnreadCount(0);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }
 
-        fetchHomeData();
-    }, [user?.id, user?.serverId]);
-
-    const [scheduleCollapsed, setScheduleCollapsed] = useState(false);
-    const [updatesCollapsed, setUpdatesCollapsed] = useState(false);
-    const expandedHeight = 384; // corresponds roughly to h-96
-    const collapsedHeight = 96; // slightly larger collapsed height
-
-    // Get next lesson info
-    const nextLesson =
-        todayLessons.length > 0
-            ? todayLessons[0]
-            : { subject: "Brak", time: "---" };
+    const nextLesson = todayLessons[0] ?? null;
 
     return (
         <ScrollView
             stickyHeaderIndices={[0]}
-            contentContainerStyle={{ paddingBottom: 48 }}
+            style={{ flex: 1, backgroundColor: palette.background }}
+            contentContainerStyle={{ paddingBottom: 120 }}
             showsVerticalScrollIndicator={false}
-            style={{ backgroundColor: bg }}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => {
+                        setRefreshing(true);
+                        void loadDashboard();
+                    }}
+                    tintColor={palette.primary}
+                />
+            }
         >
-            {/* Header (greeting + date) - direct child so it becomes sticky */}
-            <Header title={`Witaj, ${firstName ?? 'User'}!`} subtitle={formattedDate} />
+            <Header
+                title={`Dzien dobry, ${firstName}`}
+                subtitle={`${formattedDate}. Twoj dzisiejszy przeglad postepow akademickich.`}
+            />
 
-            <View className="flex-1">
-                {/* Two small cards aligned left and right using flex-row */}
-                <View className="mt-4 px-4 flex-row items-start">
-                    <Card className="flex-1 mr-2 h-36 p-4">
-                        <View
-                            className={`w-12 h-12 ${
-                                theme === "dark"
-                                    ? "bg-[#0a1828]"
-                                    : "bg-blue-100"
-                            } rounded-lg items-center justify-center mb-2`}
-                        >
-                            <Ionicons
-                                name="time-outline"
-                                size={24}
-                                color="#60A5FA"
-                            />
-                        </View>
-                        <Text
-                            className={`${textClass} text-sm font-semibold mb-1`}
-                        >
-                            Następna lekcja
-                        </Text>
-                        <Text
-                            className={`${
-                                theme === "dark"
-                                    ? "text-gray-400"
-                                    : "text-gray-600"
-                            } text-xs`}
-                        >
-                            {nextLesson.subject}
-                        </Text>
-                        <Text
-                            className={`${
-                                theme === "dark"
-                                    ? "text-gray-400"
-                                    : "text-gray-600"
-                            } text-xs`}
-                        >
-                            {nextLesson.time}
-                        </Text>
-                    </Card>
-
-                    <Card className="flex-1 ml-2 h-36 p-4">
-                        <View
-                            className={`w-12 h-12 ${
-                                theme === "dark"
-                                    ? "bg-yellow-950"
-                                    : "bg-yellow-200"
-                            } rounded-lg items-center justify-center mb-2`}
-                        >
-                            <Ionicons
-                                name="trending-up"
-                                size={24}
-                                color="yellow"
-                            />
-                        </View>
-                        <Text
-                            className={`${textClass} text-sm font-semibold mb-1`}
-                        >
-                            Średnia
-                        </Text>
-                        <Text
-                            className={`${
-                                theme === "dark"
-                                    ? "text-gray-400"
-                                    : "text-gray-600"
-                            } text-2xl font-bold`}
-                        >
-                            {gradeAverage ?? user?.grades.average ?? "—"}
-                        </Text>
-                    </Card>
+            <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                        <EditorialStatCard
+                            eyebrow="Srednia ocen"
+                            value={gradeAverage}
+                            caption="Biezacy podglad ocen z aktywnych przedmiotow."
+                            icon="trending-up-outline"
+                            tone="primary"
+                            onPress={() => router.push("/grades")}
+                        />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <EditorialStatCard
+                            eyebrow="Wiadomosci"
+                            value={String(unreadCount).padStart(2, "0")}
+                            caption={
+                                unreadCount > 0
+                                    ? `${unreadCount} nieprzeczytanych w skrzynce.`
+                                    : "Skrzynka odbiorcza jest na czysto."
+                            }
+                            icon="mail-unread-outline"
+                            tone="warning"
+                            onPress={() => router.push("/messages")}
+                        />
+                    </View>
                 </View>
 
-                {/* Title + big schedule card */}
-                <View className="px-4 mt-4">
-                    <View className="flex-row items-center justify-between">
-                        <Text className={`${textClass} text-2xl`}>
-                            Dzisiejszy plan lekcji:
-                        </Text>
-                        <TouchableOpacity
-                            accessibilityLabel="Toggle schedule"
-                            onPress={() => {
-                                LayoutAnimation.configureNext(
-                                    LayoutAnimation.Presets.easeInEaseOut
-                                );
-                                setScheduleCollapsed((s) => !s);
-                            }}
-                        >
-                            <Ionicons
-                                name={
-                                    scheduleCollapsed
-                                        ? "chevron-down"
-                                        : "chevron-up"
-                                }
-                                size={26}
-                                color={theme === "dark" ? "#fff" : "#000"}
+                <View style={{ marginTop: 30 }}>
+                    <EditorialSectionHeader
+                        eyebrow="Na dzis"
+                        title="Plan dnia"
+                        meta={String(todayLessons.length)}
+                    />
+
+                    {nextLesson ? (
+                        <View style={{ gap: 12 }}>
+                            <EditorialRowCard
+                                title={nextLesson.subject}
+                                subtitle={`Sala ${nextLesson.room}`}
+                                meta={nextLesson.time}
+                                badge="Nastepna lekcja"
+                                icon="time-outline"
+                                tone="primary"
+                                onPress={() => router.push("/schedule")}
                             />
-                        </TouchableOpacity>
-                    </View>
-                    <Card
-                        className="mt-3 w-full overflow-hidden"
+
+                            {todayLessons.slice(1).map((lesson) => (
+                                <View key={lesson.id} style={{ marginTop: 12 }}>
+                                    <EditorialRowCard
+                                        title={lesson.subject}
+                                        subtitle={`Sala ${lesson.room}`}
+                                        meta={lesson.time}
+                                        icon="calendar-outline"
+                                        tone="neutral"
+                                        onPress={() => router.push("/schedule")}
+                                    />
+                                </View>
+                            ))}
+                        </View>
+                    ) : (
+                        <EmptyState
+                            title="Brak lekcji na dzis"
+                            subtitle="Gdy plan dnia bedzie dostepny, zobaczysz go tutaj."
+                        />
+                    )}
+                </View>
+
+                <View style={{ marginTop: 30 }}>
+                    <EditorialSectionHeader
+                        eyebrow="Na zywo"
+                        title="Aktywnosc"
+                        meta={String(recentUpdates.length)}
+                    />
+
+                    {recentUpdates.length > 0 ? (
+                        recentUpdates.map((update, index) => {
+                            const tone = getUpdateTone(update.type);
+
+                            return (
+                                <View
+                                    key={update.id}
+                                    style={{ marginTop: index === 0 ? 0 : 12 }}
+                                >
+                                    <EditorialRowCard
+                                        title={update.title}
+                                        subtitle={update.desc}
+                                        meta={update.time}
+                                        badge={tone.badge}
+                                        icon={tone.icon}
+                                        tone={tone.tone}
+                                        onPress={() => {
+                                            if (update.type === "message") {
+                                                router.push("/messages");
+                                            } else if (update.type === "grade") {
+                                                router.push("/grades");
+                                            } else {
+                                                router.push("/attendance");
+                                            }
+                                        }}
+                                    />
+                                </View>
+                            );
+                        })
+                    ) : (
+                        <EmptyState
+                            title="Brak nowych aktualizacji"
+                            subtitle="Nowe wpisy z ocen, wiadomosci i ogloszen pojawia sie tutaj."
+                        />
+                    )}
+                </View>
+
+                <View style={{ marginTop: 30 }}>
+                    <EditorialSectionHeader
+                        eyebrow="Szybkie akcje"
+                        title="Przejdz dalej"
+                    />
+
+                    <View
                         style={{
-                            height: scheduleCollapsed
-                                ? collapsedHeight
-                                : expandedHeight,
+                            backgroundColor: palette.surface,
+                            borderRadius: 24,
+                            paddingVertical: 6,
                         }}
                     >
-                        <View className="p-4">
-                            {scheduleCollapsed
-                                ? // Show only first lesson when collapsed
-                                  todayLessons.length > 0 && (
-                                      <View>
-                                          <View className="flex-row items-center justify-between">
-                                              <Text
-                                                  className={`${textClass} font-semibold text-base`}
-                                              >
-                                                  {todayLessons[0].subject}
-                                              </Text>
-                                              <Text
-                                                  className={`${
-                                                      theme === "dark"
-                                                          ? "text-blue-400"
-                                                          : "text-blue-500"
-                                                  } text-sm`}
-                                              >
-                                                  {todayLessons[0].time}
-                                              </Text>
-                                          </View>
-                                          <Text
-                                              className={`${
-                                                  theme === "dark"
-                                                      ? "text-gray-400"
-                                                      : "text-gray-600"
-                                              } text-sm mt-1`}
-                                          >
-                                              {todayLessons[0].room}
-                                          </Text>
-                                      </View>
-                                  )
-                                : // Show all lessons when expanded
-                                  todayLessons.map((lesson, index) => (
-                                      <View
-                                          key={lesson.id}
-                                          className={`mb-3 pb-3 ${
-                                              index !== todayLessons.length - 1
-                                                  ? `border-b ${
-                                                        theme === "dark"
-                                                            ? "border-gray-800"
-                                                            : "border-gray-200"
-                                                    }`
-                                                  : ""
-                                          }`}
-                                      >
-                                          <View className="flex-row items-center justify-between">
-                                              <Text
-                                                  className={`${textClass} font-semibold text-base`}
-                                              >
-                                                  {lesson.subject}
-                                              </Text>
-                                              <Text
-                                                  className={`${
-                                                      theme === "dark"
-                                                          ? "text-blue-400"
-                                                          : "text-blue-500"
-                                                  } text-sm`}
-                                              >
-                                                  {lesson.time}
-                                              </Text>
-                                          </View>
-                                          <Text
-                                              className={`${
-                                                  theme === "dark"
-                                                      ? "text-gray-400"
-                                                      : "text-gray-600"
-                                              } text-sm mt-1`}
-                                          >
-                                              {lesson.room}
-                                          </Text>
-                                      </View>
-                                  ))}
-                        </View>
-                    </Card>
-                </View>
-
-                <View className="px-4 mt-4">
-                    <View className="flex-row items-center justify-between">
-                        <Text className={`${textClass} text-2xl`}>
-                            Nowe aktualizacje:
-                        </Text>
-                        <TouchableOpacity
-                            accessibilityLabel="Toggle updates"
-                            onPress={() => {
-                                LayoutAnimation.configureNext(
-                                    LayoutAnimation.Presets.easeInEaseOut
-                                );
-                                setUpdatesCollapsed((s) => !s);
-                            }}
-                        >
-                            <Ionicons
-                                name={
-                                    updatesCollapsed
-                                        ? "chevron-down"
-                                        : "chevron-up"
-                                }
-                                size={26}
-                                color={theme === "dark" ? "#fff" : "#000"}
-                            />
-                        </TouchableOpacity>
+                        {[
+                            {
+                                title: "Oceny",
+                                subtitle: "Zobacz srednia, przedmioty i szczegoly oceniania.",
+                                route: "/grades" as const,
+                                icon: "ribbon-outline" as const,
+                                tone: "primary" as const,
+                            },
+                            {
+                                title: "Frekwencja",
+                                subtitle: "Sprawdz obecnosc, opoznienia i nieobecnosci.",
+                                route: "/attendance" as const,
+                                icon: "stats-chart-outline" as const,
+                                tone: "warning" as const,
+                            },
+                            {
+                                title: "Wiadomosci",
+                                subtitle: "Przejdz do skrzynki odbiorczej i wyslanych wiadomosci.",
+                                route: "/messages" as const,
+                                icon: "chatbubble-ellipses-outline" as const,
+                                tone: "success" as const,
+                            },
+                            {
+                                title: "Plan lekcji",
+                                subtitle: "Otworz kalendarz i rozklad zajec.",
+                                route: "/schedule" as const,
+                                icon: "calendar-outline" as const,
+                                tone: "neutral" as const,
+                            },
+                        ].map((action, index) => (
+                            <View key={action.title} style={{ marginTop: index === 0 ? 0 : 12 }}>
+                                <EditorialRowCard
+                                    title={action.title}
+                                    subtitle={action.subtitle}
+                                    icon={action.icon}
+                                    tone={action.tone}
+                                    onPress={() => router.push(action.route)}
+                                />
+                            </View>
+                        ))}
                     </View>
-
-                    <Card
-                        className="mt-3 w-full overflow-hidden"
-                        style={{
-                            height: updatesCollapsed
-                                ? collapsedHeight
-                                : expandedHeight,
-                        }}
-                    >
-                        <View className="p-4">
-                            {updatesCollapsed
-                                ? // Show only first update when collapsed
-                                  recentUpdates.length > 0 && (
-                                      <View>
-                                          <View className="flex-row items-start">
-                                              <View
-                                                  className={`w-10 h-10 rounded-full ${
-                                                      recentUpdates[0].type ===
-                                                      "grade"
-                                                          ? theme === "dark"
-                                                              ? "bg-green-900/30"
-                                                              : "bg-green-100"
-                                                          : recentUpdates[0]
-                                                                .type ===
-                                                            "message"
-                                                          ? theme === "dark"
-                                                              ? "bg-blue-900/30"
-                                                              : "bg-blue-100"
-                                                          : theme === "dark"
-                                                          ? "bg-orange-900/30"
-                                                          : "bg-orange-100"
-                                                  } items-center justify-center mr-3`}
-                                              >
-                                                  <Ionicons
-                                                      name={
-                                                          recentUpdates[0]
-                                                              .type === "grade"
-                                                              ? "school-outline"
-                                                              : recentUpdates[0]
-                                                                    .type ===
-                                                                "message"
-                                                              ? "mail-outline"
-                                                              : "megaphone-outline"
-                                                      }
-                                                      size={20}
-                                                      color={
-                                                          recentUpdates[0]
-                                                              .type === "grade"
-                                                              ? "#22c55e"
-                                                              : recentUpdates[0]
-                                                                    .type ===
-                                                                "message"
-                                                              ? "#3b82f6"
-                                                              : "#f97316"
-                                                      }
-                                                  />
-                                              </View>
-                                              <View className="flex-1">
-                                                  <Text
-                                                      className={`${textClass} font-semibold text-base`}
-                                                  >
-                                                      {recentUpdates[0].title}
-                                                  </Text>
-                                                  <Text
-                                                      className={`${
-                                                          theme === "dark"
-                                                              ? "text-gray-400"
-                                                              : "text-gray-600"
-                                                      } text-sm mt-1`}
-                                                  >
-                                                      {recentUpdates[0].desc}
-                                                  </Text>
-                                              </View>
-                                          </View>
-                                      </View>
-                                  )
-                                : // Show all updates when expanded
-                                  recentUpdates.map((update, index) => (
-                                      <View
-                                          key={update.id}
-                                          className={`mb-3 pb-3 ${
-                                              index !== recentUpdates.length - 1
-                                                  ? `border-b ${
-                                                        theme === "dark"
-                                                            ? "border-gray-800"
-                                                            : "border-gray-200"
-                                                    }`
-                                                  : ""
-                                          }`}
-                                      >
-                                          <View className="flex-row items-start">
-                                              <View
-                                                  className={`w-10 h-10 rounded-full ${
-                                                      update.type === "grade"
-                                                          ? theme === "dark"
-                                                              ? "bg-green-900/30"
-                                                              : "bg-green-100"
-                                                          : update.type ===
-                                                            "message"
-                                                          ? theme === "dark"
-                                                              ? "bg-blue-900/30"
-                                                              : "bg-blue-100"
-                                                          : theme === "dark"
-                                                          ? "bg-orange-900/30"
-                                                          : "bg-orange-100"
-                                                  } items-center justify-center mr-3`}
-                                              >
-                                                  <Ionicons
-                                                      name={
-                                                          update.type ===
-                                                          "grade"
-                                                              ? "school-outline"
-                                                              : update.type ===
-                                                                "message"
-                                                              ? "mail-outline"
-                                                              : "megaphone-outline"
-                                                      }
-                                                      size={20}
-                                                      color={
-                                                          update.type ===
-                                                          "grade"
-                                                              ? "#22c55e"
-                                                              : update.type ===
-                                                                "message"
-                                                              ? "#3b82f6"
-                                                              : "#f97316"
-                                                      }
-                                                  />
-                                              </View>
-                                              <View className="flex-1">
-                                                  <Text
-                                                      className={`${textClass} font-semibold text-base`}
-                                                  >
-                                                      {update.title}
-                                                  </Text>
-                                                  <Text
-                                                      className={`${
-                                                          theme === "dark"
-                                                              ? "text-gray-400"
-                                                              : "text-gray-600"
-                                                      } text-sm mt-1`}
-                                                  >
-                                                      {update.desc}
-                                                  </Text>
-                                                  <Text
-                                                      className={`${
-                                                          theme === "dark"
-                                                              ? "text-gray-500"
-                                                              : "text-gray-400"
-                                                      } text-xs mt-1`}
-                                                  >
-                                                      {update.time}
-                                                  </Text>
-                                              </View>
-                                          </View>
-                                      </View>
-                                  ))}
-                        </View>
-                    </Card>
                 </View>
+
+                {loading ? (
+                    <View style={{ marginTop: 28 }}>
+                        <Text
+                            style={[
+                                editorialType.body,
+                                { color: palette.textSoft, textAlign: "center" },
+                            ]}
+                        >
+                            Odswiezam pulpit...
+                        </Text>
+                    </View>
+                ) : null}
             </View>
         </ScrollView>
     );

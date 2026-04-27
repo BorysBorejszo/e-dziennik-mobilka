@@ -1,6 +1,14 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import {
     calculateWeightedAverage,
     getUserGrades,
@@ -11,7 +19,6 @@ import {
     EditorialSearchField,
     EditorialSectionHeader,
     EditorialSegmentedControl,
-    EditorialStatCard,
 } from "../components/editorial/MobileBlocks";
 import Header from "../components/Header";
 import EmptyState from "../components/ui/EmptyState";
@@ -49,6 +56,9 @@ export default function Grades() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [mode, setMode] = useState<"subjects" | "behavior">("subjects");
+    const [expandedStat, setExpandedStat] = useState<"average" | "behavior" | null>(
+        null
+    );
 
     const load = async () => {
         if (!user) return;
@@ -122,72 +132,79 @@ export default function Grades() {
     }, [search, subjects]);
 
     return (
-        <ScrollView
-            stickyHeaderIndices={[0]}
-            style={{ flex: 1, backgroundColor: palette.background }}
-            contentContainerStyle={{ paddingBottom: 120 }}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                <RefreshControl
-                    refreshing={loading}
-                    onRefresh={load}
-                    tintColor={palette.primary}
+        <>
+            <ScrollView
+                stickyHeaderIndices={[0]}
+                style={{ flex: 1, backgroundColor: palette.background }}
+                contentContainerStyle={{ paddingBottom: 120 }}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={loading}
+                        onRefresh={load}
+                        tintColor={palette.primary}
+                    />
+                }
+            >
+                <Header
+                    title="Oceny"
+                    subtitle="Podsumowanie ocen z biezacego okresu"
                 />
-            }
-        >
-            <Header
-                title="Oceny"
-                subtitle="Podsumowanie ocen z biezacego okresu"
-            />
 
             <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-                <View style={{ flexDirection: "row", gap: 12 }}>
-                    <View style={{ flex: 1 }}>
-                        <EditorialStatCard
-                            eyebrow="Srednia"
-                            value={overallAverage ? overallAverage.toFixed(2) : "—"}
-                            caption="Biezaca srednia wazona ze wszystkich aktywnych ocen."
-                            icon="stats-chart-outline"
-                            tone="primary"
-                        />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <EditorialStatCard
-                            eyebrow="Zachowanie"
-                            value={behaviorGradeLabel}
-                            caption={`Punkty zachowania: ${behaviorPointsTotal}`}
-                            icon="sparkles-outline"
-                            tone="warning"
-                            onPress={() => setMode("behavior")}
-                        />
-                    </View>
-                </View>
+                <View style={styles.topCardsStack}>
+                    <View style={styles.topCardsRow}>
+                        <TouchableOpacity
+                            activeOpacity={0.9}
+                            onPress={() =>
+                                setExpandedStat((current) =>
+                                    current === "average" ? null : "average"
+                                )
+                            }
+                            style={styles.topCardColumn}
+                        >
+                            <EditorialPanel style={styles.collapsedStatCard}>
+                                <Text style={[editorialType.meta, { color: palette.textSoft }]}>
+                                    Srednia
+                                </Text>
+                                <Text
+                                    style={[
+                                        editorialType.headline,
+                                        styles.collapsedStatValue,
+                                        { color: palette.primary },
+                                    ]}
+                                >
+                                    {overallAverage ? overallAverage.toFixed(2) : "—"}
+                                </Text>
+                            </EditorialPanel>
+                        </TouchableOpacity>
 
-                <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-                    <View style={{ flex: 1 }}>
-                        <EditorialStatCard
-                            eyebrow="Wszystkie oceny"
-                            value={String(
-                                subjects?.reduce(
-                                    (accumulator, subject) =>
-                                        accumulator + subject.grades.length,
-                                    0
-                                ) ?? 0
-                            ).padStart(2, "0")}
-                            caption="Liczba wpisow widocznych w aktualnym roku."
-                            icon="ribbon-outline"
-                            tone="neutral"
-                        />
+                        <TouchableOpacity
+                            activeOpacity={0.9}
+                            onPress={() =>
+                                setExpandedStat((current) =>
+                                    current === "behavior" ? null : "behavior"
+                                )
+                            }
+                            style={styles.topCardColumn}
+                        >
+                            <EditorialPanel style={styles.collapsedStatCard}>
+                                <Text style={[editorialType.meta, { color: palette.textSoft }]}>
+                                    Zachowanie
+                                </Text>
+                                <Text
+                                    style={[
+                                        editorialType.headline,
+                                        styles.collapsedStatValue,
+                                        { color: palette.warningText },
+                                    ]}
+                                >
+                                    {behaviorGradeLabel}
+                                </Text>
+                            </EditorialPanel>
+                        </TouchableOpacity>
                     </View>
-                    <View style={{ flex: 1 }}>
-                        <EditorialStatCard
-                            eyebrow="Przedmioty"
-                            value={String(subjects?.length ?? 0).padStart(2, "0")}
-                            caption="Aktywne przedmioty z dostepnymi ocenami."
-                            icon="library-outline"
-                            tone="warning"
-                        />
-                    </View>
+
                 </View>
 
                 <View style={{ marginTop: 24 }}>
@@ -455,7 +472,60 @@ export default function Grades() {
                     </View>
                 )}
             </View>
-        </ScrollView>
+            </ScrollView>
+
+            <Modal
+                visible={expandedStat !== null}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setExpandedStat(null)}
+            >
+                <TouchableOpacity
+                    activeOpacity={1}
+                    style={styles.expandedModalBackdrop}
+                    onPress={() => setExpandedStat(null)}
+                >
+                    <View style={styles.expandedModalContentWrap}>
+                        <TouchableOpacity activeOpacity={1}>
+                            <EditorialPanel style={styles.expandedStatCard}>
+                                <Text style={[editorialType.meta, { color: palette.textSoft }]}>
+                                    {expandedStat === "average" ? "Srednia" : "Zachowanie"}
+                                </Text>
+                                <Text
+                                    style={[
+                                        editorialType.headline,
+                                        styles.expandedStatValue,
+                                        {
+                                            color:
+                                                expandedStat === "average"
+                                                    ? palette.primary
+                                                    : palette.warningText,
+                                        },
+                                    ]}
+                                >
+                                    {expandedStat === "average"
+                                        ? overallAverage
+                                            ? overallAverage.toFixed(2)
+                                            : "—"
+                                        : behaviorGradeLabel}
+                                </Text>
+                                <Text
+                                    style={[
+                                        editorialType.body,
+                                        styles.expandedStatCaption,
+                                        { color: palette.textMuted },
+                                    ]}
+                                >
+                                    {expandedStat === "average"
+                                        ? "Biezaca srednia wazona ze wszystkich aktywnych ocen."
+                                        : `Aktualna ocena zachowania. Punkty: ${behaviorPointsTotal}.`}
+                                </Text>
+                            </EditorialPanel>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+        </>
     );
 }
 
@@ -496,5 +566,50 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginRight: 14,
         paddingHorizontal: 10,
+    },
+    topCardsRow: {
+        flexDirection: "row",
+        alignItems: "stretch",
+        gap: 12,
+    },
+    topCardsStack: {
+        position: "relative",
+    },
+    topCardColumn: {
+        flex: 1,
+    },
+    collapsedStatCard: {
+        minHeight: 96,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingVertical: 18,
+        paddingHorizontal: 12,
+    },
+    collapsedStatValue: {
+        marginTop: 8,
+        fontSize: 34,
+        lineHeight: 38,
+    },
+    expandedModalBackdrop: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.28)",
+    },
+    expandedModalContentWrap: {
+        paddingHorizontal: 16,
+        marginTop: 126,
+    },
+    expandedStatCard: {
+        minHeight: 190,
+        paddingVertical: 22,
+        paddingHorizontal: 20,
+        justifyContent: "center",
+    },
+    expandedStatValue: {
+        marginTop: 8,
+        fontSize: 44,
+        lineHeight: 50,
+    },
+    expandedStatCaption: {
+        marginTop: 10,
     },
 });

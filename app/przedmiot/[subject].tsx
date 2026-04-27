@@ -19,9 +19,9 @@ export default function SubjectDetails() {
     const [subjectData, setSubjectData] = useState<SubjectGrades | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedGrade, setSelectedGrade] = useState<GradeItem | null>(null);
-    const [semesterFilter, setSemesterFilter] = useState<
-        "all" | "semester1" | "semester2"
-    >("all");
+    const [semesterFilter, setSemesterFilter] = useState<"semester1" | "semester2">(
+        "semester1"
+    );
 
     useEffect(() => {
         const load = async () => {
@@ -120,8 +120,6 @@ export default function SubjectDetails() {
 
         return [...subjectData.grades]
             .filter((grade) => {
-                if (semesterFilter === "all") return true;
-
                 const semester = getGradeSemester(grade);
                 if (semesterFilter === "semester1") return semester === 1;
                 return semester === 2;
@@ -137,7 +135,7 @@ export default function SubjectDetails() {
         if (!subjectData) return null;
 
         if (isBehaviorSubject) {
-            const baseline = semesterFilter === "all" ? 150 : 0;
+            const baseline = 0;
             const points = visibleGrades.reduce(
                 (accumulator, grade) => accumulator + (Number(grade.value) || 0),
                 baseline
@@ -151,11 +149,7 @@ export default function SubjectDetails() {
     const summaryLabel =
         semesterFilter === "semester1"
             ? "1 semestr"
-            : semesterFilter === "semester2"
-              ? "2 semestr"
-              : isBehaviorSubject
-                ? "Punkty"
-                : "Srednia";
+            : "2 semestr";
 
     const summaryDisplay =
         summaryValue === null
@@ -236,7 +230,6 @@ export default function SubjectDetails() {
                         }}
                     >
                         {[
-                            { key: "all" as const, label: "Wszystkie" },
                             { key: "semester1" as const, label: "1 semestr" },
                             { key: "semester2" as const, label: "2 semestr" },
                         ].map((option) => {
@@ -278,7 +271,7 @@ export default function SubjectDetails() {
                     </View>
 
                     {/* Lista ocen */}
-                    <Text className={`${textClass} text-2xl mb-4`}>Wszystkie oceny:</Text>
+                    <Text className={`${textClass} text-2xl mb-4`}>Oceny:</Text>
 
                     {loading && (
                         <Text className={`${textClass} text-center mt-4`}>Ładowanie...</Text>

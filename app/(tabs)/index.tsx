@@ -166,7 +166,7 @@ export default function Home() {
         >
             <Header
                 title={`Dzien dobry, ${firstName}`}
-                subtitle={`${formattedDate}. Twoj dzisiejszy przeglad postepow akademickich.`}
+                subtitle={`${formattedDate}`}
             />
 
             <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>

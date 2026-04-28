@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Modal,
+    type NativeScrollEvent,
+    type NativeSyntheticEvent,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -34,6 +36,25 @@ type StatusTone = {
     soft: string;
     text: string;
 };
+
+type AttendanceStats = {
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    total: number;
+    percentage: string;
+};
+
+type AttendanceCounters = Omit<AttendanceStats, "percentage">;
+
+type SubjectSummary = AttendanceCounters & {
+    subject: string;
+    percentage: number;
+    status: "critical" | "warning" | "safe";
+};
+
+const SCROLL_THRESHOLD = 80;
 
 function getStatusTone(
     status: string,
@@ -103,6 +124,199 @@ function getAttendanceNarrative(
     return `Aktualny wynik to ${percentage}. Nieobecnosci wymagajace uwagi: ${absent}.`;
 }
 
+function applyAttendanceStatusCounters(
+    counters: Omit<AttendanceCounters, "total">,
+    status: string
+) {
+    if (status === "Obecny") counters.present += 1;
+    else if (status === "Spóźniony") counters.late += 1;
+    else if (status === "Zwolnienie") {
+        counters.present += 1;
+        counters.excused += 1;
+    } else if (status === "Usprawiedliwiony") {
+        counters.excused += 1;
+        counters.absent += 1;
+    } else if (status === "Nieobecny") counters.absent += 1;
+}
+
+function computeAttendanceStats(records: AttendanceEntry[]): AttendanceStats {
+    const counters: AttendanceCounters = {
+        present: 0,
+        late: 0,
+        absent: 0,
+        excused: 0,
+        total: records.length,
+    };
+
+    records.forEach((entry) => {
+        applyAttendanceStatusCounters(counters, entry.status);
+    });
+
+    const attendedCount = counters.present + counters.late;
+    const percentage =
+        counters.total > 0
+            ? `${((attendedCount / counters.total) * 100).toFixed(1)}%`
+            : "—";
+
+    return { ...counters, percentage };
+}
+
+function getSortTimestamp(value: string): number {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+type DetailRowProps = {
+    label: string;
+    value: string;
+    palette: EditorialPalette;
+};
+
+const DetailRow = memo(function DetailRow({ label, value, palette }: DetailRowProps) {
+    return (
+        <View
+            style={[
+                styles.detailRow,
+                {
+                    backgroundColor: palette.pageSection,
+                },
+            ]}
+        >
+            <Text style={[editorialType.meta, { color: palette.textSoft }]}>
+                {label}
+            </Text>
+            <Text
+                style={[
+                    editorialType.body,
+                    styles.detailValue,
+                    { color: palette.text },
+                ]}
+            >
+                {value}
+            </Text>
+        </View>
+    );
+});
+
+type AttendanceEntryRowProps = {
+    entry: AttendanceEntry;
+    index: number;
+    palette: EditorialPalette;
+    onPress: (entry: AttendanceEntry) => void;
+};
+
+const AttendanceEntryRow = memo(function AttendanceEntryRow({
+    entry,
+    index,
+    palette,
+    onPress,
+}: AttendanceEntryRowProps) {
+    const tone = getStatusTone(entry.status, palette);
+
+    return (
+        <TouchableOpacity
+            onPress={() => onPress(entry)}
+            activeOpacity={0.88}
+            style={{
+                marginTop: index === 0 ? 0 : 12,
+            }}
+        >
+            <Card
+                style={{
+                    backgroundColor:
+                        index % 2 === 0 ? palette.surface : palette.pageSection,
+                }}
+            >
+                <View style={styles.entryCardInner}>
+                    <View
+                        style={[
+                            styles.entryInitial,
+                            {
+                                backgroundColor: tone.soft,
+                            },
+                        ]}
+                    >
+                        <Text
+                            style={[
+                                editorialType.title,
+                                { color: tone.text },
+                            ]}
+                        >
+                            {getStatusInitial(entry.status)}
+                        </Text>
+                    </View>
+
+                    <View
+                        style={{
+                            flex: 1,
+                            paddingRight: 12,
+                        }}
+                    >
+                        <Text
+                            style={[
+                                editorialType.title,
+                                {
+                                    color: palette.text,
+                                    marginBottom: 6,
+                                },
+                            ]}
+                        >
+                            {entry.subject}
+                        </Text>
+                        <Text
+                            style={[
+                                editorialType.body,
+                                {
+                                    color: palette.textMuted,
+                                },
+                            ]}
+                        >
+                            {formatAttendanceDate(entry.date)}
+                        </Text>
+                    </View>
+
+                    <View
+                        style={{
+                            alignItems: "flex-end",
+                        }}
+                    >
+                        <View
+                            style={[
+                                styles.statusChip,
+                                {
+                                    backgroundColor: tone.soft,
+                                },
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    editorialType.meta,
+                                    {
+                                        color: tone.text,
+                                    },
+                                ]}
+                            >
+                                {entry.status}
+                            </Text>
+                        </View>
+                        <Text
+                            style={[
+                                editorialType.meta,
+                                {
+                                    color: palette.textSoft,
+                                    marginTop: 10,
+                                },
+                            ]}
+                        >
+                            Szczegoly
+                        </Text>
+                    </View>
+                </View>
+            </Card>
+        </TouchableOpacity>
+    );
+});
+
 export default function Attendance() {
     const { theme } = useTheme();
     const { user } = useUser();
@@ -117,146 +331,128 @@ export default function Attendance() {
     );
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showExcuseModal, setShowExcuseModal] = useState(false);
-    const [stats, setStats] = useState({
-        present: 0,
-        late: 0,
-        absent: 0,
-        excused: 0,
-        total: 0,
-        percentage: "—",
-    });
+    const latestDetailsRequestIdRef = useRef<number | null>(null);
+    const lastCompactRef = useRef(false);
 
-    const SCROLL_THRESHOLD = 80;
+    const studentId = user ? (user.serverId ?? user.id) : undefined;
 
-    const calculateStats = (records: AttendanceEntry[]) => {
-        let present = 0;
-        let late = 0;
-        let absent = 0;
-        let excused = 0;
+    const stats = useMemo(() => computeAttendanceStats(entries ?? []), [entries]);
 
-        records.forEach((entry) => {
-            const status = entry.status;
-
-            if (status === "Obecny") present++;
-            else if (status === "Spóźniony") late++;
-            else if (status === "Zwolnienie") {
-                present++;
-                excused++;
-            } else if (status === "Usprawiedliwiony") {
-                excused++;
-                absent++;
-            } else if (status === "Nieobecny") absent++;
-        });
-
-        const total = records.length;
-        const attendedCount = present + late;
-        const percentage =
-            total > 0 ? `${((attendedCount / total) * 100).toFixed(1)}%` : "—";
-
-        setStats({
-            present,
-            late,
-            absent,
-            excused,
-            total,
-            percentage,
-        });
-    };
-
-    const fetchData = async () => {
-        if (!user) return;
-
-        const studentId = (user.serverId ?? user.id) as number | undefined;
+    const fetchData = useCallback(async () => {
         if (!studentId) return;
 
         setRefreshing(true);
 
         try {
             const res = await getUserAttendance(studentId);
-            const sorted = [...res.recent].sort((a, b) => {
-                const dateA = new Date(a.date).getTime();
-                const dateB = new Date(b.date).getTime();
-                return dateB - dateA;
-            });
+            const sorted = res.recent
+                .map((entry) => ({
+                    entry,
+                    timestamp: getSortTimestamp(entry.date),
+                }))
+                .sort((left, right) => right.timestamp - left.timestamp)
+                .map(({ entry }) => entry);
 
             setEntries(sorted);
-            calculateStats(sorted);
         } catch (error) {
             console.error("[attendance] Failed to fetch attendance:", error);
             setEntries([]);
-            calculateStats([]);
         } finally {
             setRefreshing(false);
         }
-    };
+    }, [studentId]);
 
-    const handleRecordClick = async (entry: AttendanceEntry) => {
-        setSelectedEntry(entry);
+    const closeDetailsModal = useCallback(() => {
+        latestDetailsRequestIdRef.current = null;
+        setShowDetailsModal(false);
+        setSelectedEntry(null);
         setSelectedRecord(null);
-        setShowDetailsModal(true);
+    }, []);
 
-        if (!entry.id) return;
+    const closeExcuseModal = useCallback(() => {
+        setShowExcuseModal(false);
+    }, []);
 
-        try {
-            const fullRecord = await getAttendanceById(entry.id);
-            setSelectedRecord(fullRecord);
-        } catch (error) {
-            console.error("[attendance] Error fetching record details:", error);
-        }
-    };
+    const handleRecordClick = useCallback(
+        async (entry: AttendanceEntry) => {
+            setSelectedEntry(entry);
+            setSelectedRecord(null);
+            setShowDetailsModal(true);
+
+            if (!entry.id) return;
+
+            latestDetailsRequestIdRef.current = entry.id;
+
+            try {
+                const fullRecord = await getAttendanceById(entry.id);
+                if (latestDetailsRequestIdRef.current !== entry.id) return;
+                setSelectedRecord(fullRecord);
+            } catch (error) {
+                console.error(
+                    "[attendance] Error fetching record details:",
+                    error
+                );
+            }
+        },
+        []
+    );
+
+    const handleScroll = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            const compact =
+                event.nativeEvent.contentOffset.y > SCROLL_THRESHOLD;
+            if (lastCompactRef.current === compact) return;
+            lastCompactRef.current = compact;
+            setShowCompact(compact);
+        },
+        []
+    );
 
     useEffect(() => {
-        fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id, user?.serverId]);
+        void fetchData();
+    }, [fetchData]);
 
-    const statItems = [
-        {
-            label: "Obecnosci",
-            value: stats.present,
-            tone: {
-                backgroundColor: "rgba(255,255,255,0.16)",
-                color: "#f4fff7",
+    const statItems = useMemo(
+        () => [
+            {
+                label: "Obecnosci",
+                value: stats.present,
+                tone: {
+                    backgroundColor: "rgba(255,255,255,0.16)",
+                    color: "#f4fff7",
+                },
             },
-        },
-        {
-            label: "Spoznienia",
-            value: stats.late,
-            tone: {
-                backgroundColor: "rgba(255,255,255,0.12)",
-                color: "#fff2d7",
+            {
+                label: "Spoznienia",
+                value: stats.late,
+                tone: {
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                    color: "#fff2d7",
+                },
             },
-        },
-        {
-            label: "Nieobecnosci",
-            value: stats.absent,
-            tone: {
-                backgroundColor: "rgba(255,255,255,0.12)",
-                color: "#ffe3dc",
+            {
+                label: "Nieobecnosci",
+                value: stats.absent,
+                tone: {
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                    color: "#ffe3dc",
+                },
             },
-        },
-        {
-            label: "Uspraw.",
-            value: stats.excused,
-            tone: {
-                backgroundColor: "rgba(255,255,255,0.14)",
-                color: "#e8f1ff",
+            {
+                label: "Uspraw.",
+                value: stats.excused,
+                tone: {
+                    backgroundColor: "rgba(255,255,255,0.14)",
+                    color: "#e8f1ff",
+                },
             },
-        },
-    ];
+        ],
+        [stats.absent, stats.excused, stats.late, stats.present]
+    );
 
     const modalTone = getStatusTone(selectedEntry?.status ?? "", palette);
-    const subjectSummaries = useMemo(() => {
-        const groups = new Map<
-            string,
-            {
-                present: number;
-                late: number;
-                absent: number;
-                excused: number;
-                total: number;
-            }
-        >();
+    const subjectSummaries = useMemo<SubjectSummary[]>(() => {
+        const groups = new Map<string, AttendanceCounters>();
 
         (entries ?? []).forEach((entry) => {
             const current = groups.get(entry.subject) ?? {
@@ -268,22 +464,7 @@ export default function Attendance() {
             };
 
             current.total += 1;
-
-            if (entry.status === "Obecny") current.present += 1;
-            else if (entry.status === "Spóźniony") current.late += 1;
-            else if (entry.status === "Zwolnienie") {
-                current.present += 1;
-                current.excused += 1;
-            }
-            else if (
-                entry.status === "Usprawiedliwiony"
-            ) {
-                current.excused += 1;
-                current.absent += 1;
-            } else if (entry.status === "Nieobecny") {
-                current.absent += 1;
-            }
-
+            applyAttendanceStatusCounters(current, entry.status);
             groups.set(entry.subject, current);
         });
 
@@ -308,32 +489,10 @@ export default function Attendance() {
             })
             .sort((left, right) => left.percentage - right.percentage);
     }, [entries]);
-    const criticalSubjects = subjectSummaries.filter(
-        (subject) => subject.status === "critical"
-    );
 
-    const renderDetailRow = (label: string, value: string) => (
-        <View
-            style={[
-                styles.detailRow,
-                {
-                    backgroundColor: palette.pageSection,
-                },
-            ]}
-        >
-            <Text style={[editorialType.meta, { color: palette.textSoft }]}>
-                {label}
-            </Text>
-            <Text
-                style={[
-                    editorialType.body,
-                    styles.detailValue,
-                    { color: palette.text },
-                ]}
-            >
-                {value}
-            </Text>
-        </View>
+    const criticalSubjects = useMemo(
+        () => subjectSummaries.filter((subject) => subject.status === "critical"),
+        [subjectSummaries]
     );
 
     return (
@@ -348,20 +507,14 @@ export default function Attendance() {
                         tintColor={palette.primary}
                     />
                 }
-                onScroll={(event) => {
-                    const compact =
-                        event.nativeEvent.contentOffset.y > SCROLL_THRESHOLD;
-                    setShowCompact((current) =>
-                        current === compact ? current : compact
-                    );
-                }}
+                onScroll={handleScroll}
                 scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: 144 }}
                 showsVerticalScrollIndicator={false}
             >
                 <Header
                     title="Frekwencja"
-                    subtitle="Spokojny, redakcyjny podglad obecnosci i nieobecnosci"
+                    subtitle="Podglad obecnosci i nieobecnosci"
                 >
                     {showCompact ? (
                         <View>
@@ -532,124 +685,15 @@ export default function Attendance() {
 
                         {entries && entries.length > 0 ? (
                             <View style={styles.listWrap}>
-                                {entries.map((entry, index) => {
-                                    const tone = getStatusTone(
-                                        entry.status,
-                                        palette
-                                    );
-
-                                    return (
-                                        <TouchableOpacity
-                                            key={`${entry.id ?? "attendance"}-${index}`}
-                                            onPress={() => handleRecordClick(entry)}
-                                            activeOpacity={0.88}
-                                            style={{
-                                                marginTop: index === 0 ? 0 : 12,
-                                            }}
-                                        >
-                                            <Card
-                                                style={{
-                                                    backgroundColor:
-                                                        index % 2 === 0
-                                                            ? palette.surface
-                                                            : palette.pageSection,
-                                                }}
-                                            >
-                                                <View style={styles.entryCardInner}>
-                                                    <View
-                                                        style={[
-                                                            styles.entryInitial,
-                                                            {
-                                                                backgroundColor:
-                                                                    tone.soft,
-                                                            },
-                                                        ]}
-                                                    >
-                                                        <Text
-                                                            style={[
-                                                                editorialType.title,
-                                                                { color: tone.text },
-                                                            ]}
-                                                        >
-                                                            {getStatusInitial(
-                                                                entry.status
-                                                            )}
-                                                        </Text>
-                                                    </View>
-
-                                                    <View
-                                                        style={{
-                                                            flex: 1,
-                                                            paddingRight: 12,
-                                                        }}
-                                                    >
-                                                        <Text
-                                                            style={[
-                                                                editorialType.title,
-                                                                {
-                                                                    color: palette.text,
-                                                                    marginBottom: 6,
-                                                                },
-                                                            ]}
-                                                        >
-                                                            {entry.subject}
-                                                        </Text>
-                                                        <Text
-                                                            style={[
-                                                                editorialType.body,
-                                                                {
-                                                                    color: palette.textMuted,
-                                                                },
-                                                            ]}
-                                                        >
-                                                            {formatAttendanceDate(
-                                                                entry.date
-                                                            )}
-                                                        </Text>
-                                                    </View>
-
-                                                    <View
-                                                        style={{
-                                                            alignItems: "flex-end",
-                                                        }}
-                                                    >
-                                                        <View
-                                                            style={[
-                                                                styles.statusChip,
-                                                                {
-                                                                    backgroundColor:
-                                                                        tone.soft,
-                                                                },
-                                                            ]}
-                                                        >
-                                                            <Text
-                                                                style={[
-                                                                    editorialType.meta,
-                                                                    {
-                                                                        color: tone.text,
-                                                                    },
-                                                                ]}
-                                                            >
-                                                                {entry.status}
-                                                            </Text>
-                                                        </View>
-                                                        <Text
-                                                            style={[
-                                                                editorialType.meta,
-                                                                {
-                                                                    color: palette.textSoft,
-                                                                    marginTop: 10,
-                                                                },
-                                                            ]}
-                                                        >
-                                                            Szczegoly
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                            </Card>
-                                        </TouchableOpacity>
-                                    );
-                                })}
+                                {entries.map((entry, index) => (
+                                    <AttendanceEntryRow
+                                        key={`${entry.id ?? "attendance"}-${index}`}
+                                        entry={entry}
+                                        index={index}
+                                        palette={palette}
+                                        onPress={handleRecordClick}
+                                    />
+                                ))}
                             </View>
                         ) : (
                             <View style={{ marginTop: 16 }}>
@@ -837,7 +881,7 @@ export default function Attendance() {
                 visible={showExcuseModal}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setShowExcuseModal(false)}
+                onRequestClose={closeExcuseModal}
             >
                 <View
                     style={[
@@ -851,15 +895,15 @@ export default function Attendance() {
                             { backgroundColor: palette.surface },
                             getEditorialShadow(theme, "floating"),
                         ]}
-                    >
-                        <Text
-                            style={[
-                                editorialType.headline,
-                                { color: palette.text, fontSize: 24, lineHeight: 28 },
-                            ]}
                         >
-                            Usprawiedliwienie
-                        </Text>
+                            <Text
+                                style={[
+                                    editorialType.headline,
+                                    { color: palette.text, fontSize: 24, lineHeight: 28 },
+                                ]}
+                            >
+                                Usprawiedliwienie
+                            </Text>
                         <Text
                             style={[
                                 editorialType.body,
@@ -869,7 +913,7 @@ export default function Attendance() {
                             Usprawiedliwienia skladane sa przez rodzica lub wychowawce.
                         </Text>
                         <TouchableOpacity
-                            onPress={() => setShowExcuseModal(false)}
+                            onPress={closeExcuseModal}
                             style={[
                                 styles.closeButton,
                                 { backgroundColor: palette.primary },
@@ -892,7 +936,7 @@ export default function Attendance() {
                 visible={showDetailsModal}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setShowDetailsModal(false)}
+                onRequestClose={closeDetailsModal}
             >
                 <View
                     style={[
@@ -968,44 +1012,51 @@ export default function Attendance() {
                                                 },
                                             ]}
                                         >
-                                            {formatAttendanceDate(
-                                                selectedRecord?.data ??
-                                                    selectedEntry.date
-                                            )}
-                                        </Text>
-                                    </View>
-                                </View>
+                                    {formatAttendanceDate(
+                                        selectedRecord?.data ??
+                                            selectedEntry.date
+                                    )}
+                                </Text>
+                            </View>
+                        </View>
 
-                                <View style={styles.detailStack}>
-                                    {renderDetailRow(
-                                        "Przedmiot",
-                                        selectedRecord?.przedmiot ??
-                                            selectedEntry.subject ??
-                                            "Brak danych"
-                                    )}
-                                    {renderDetailRow(
-                                        "Status",
-                                        selectedEntry.status
-                                    )}
-                                    {renderDetailRow(
-                                        "Nauczyciel",
-                                        selectedRecord?.nauczyciel ??
-                                            "Brak danych"
-                                    )}
-                                    {renderDetailRow(
-                                        "Godzina lekcyjna",
-                                        selectedRecord?.godzina_lekcyjna_id
-                                            ? `Lekcja #${selectedRecord.godzina_lekcyjna_id}`
-                                            : "Brak danych"
-                                    )}
-                                </View>
+                        <View style={styles.detailStack}>
+                            <DetailRow
+                                label="Przedmiot"
+                                value={
+                                    selectedRecord?.przedmiot ??
+                                    selectedEntry.subject ??
+                                    "Brak danych"
+                                }
+                                palette={palette}
+                            />
+                            <DetailRow
+                                label="Status"
+                                value={selectedEntry.status}
+                                palette={palette}
+                            />
+                            <DetailRow
+                                label="Nauczyciel"
+                                value={selectedRecord?.nauczyciel ?? "Brak danych"}
+                                palette={palette}
+                            />
+                            <DetailRow
+                                label="Godzina lekcyjna"
+                                value={
+                                    selectedRecord?.godzina_lekcyjna_id
+                                        ? `Lekcja #${selectedRecord.godzina_lekcyjna_id}`
+                                        : "Brak danych"
+                                }
+                                palette={palette}
+                            />
+                        </View>
 
-                                <TouchableOpacity
-                                    onPress={() => setShowDetailsModal(false)}
-                                    style={[
-                                        styles.closeButton,
-                                        {
-                                            backgroundColor: palette.primary,
+                        <TouchableOpacity
+                            onPress={closeDetailsModal}
+                            style={[
+                                styles.closeButton,
+                                {
+                                    backgroundColor: palette.primary,
                                         },
                                     ]}
                                     activeOpacity={0.9}

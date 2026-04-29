@@ -27,6 +27,11 @@ type SectionHeaderProps = {
     eyebrow?: string;
     title: string;
     meta?: string;
+    /**
+     * When provided, the whole header becomes tappable and a small chevron
+     * is shown on the right to hint that it leads somewhere.
+     */
+    onPress?: () => void;
 };
 
 type StatCardProps = {
@@ -129,11 +134,12 @@ export function EditorialSectionHeader({
     eyebrow,
     title,
     meta,
+    onPress,
 }: SectionHeaderProps) {
     const { theme } = useTheme();
     const palette = getEditorialPalette(theme);
 
-    return (
+    const inner = (
         <View style={styles.sectionHeader}>
             <View style={{ flex: 1, paddingRight: 12 }}>
                 {eyebrow ? (
@@ -164,7 +170,29 @@ export function EditorialSectionHeader({
                     </Text>
                 </View>
             ) : null}
+            {onPress ? (
+                <View
+                    style={[
+                        styles.sectionChevron,
+                        { backgroundColor: palette.primaryFixed },
+                    ]}
+                >
+                    <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={palette.infoText}
+                    />
+                </View>
+            ) : null}
         </View>
+    );
+
+    if (!onPress) return inner;
+
+    return (
+        <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
+            {inner}
+        </TouchableOpacity>
     );
 }
 
@@ -424,6 +452,14 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         paddingHorizontal: 12,
+    },
+    sectionChevron: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        marginLeft: 8,
     },
     statCard: {
         minHeight: 176,

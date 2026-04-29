@@ -184,7 +184,7 @@ export default function Home() {
                     <EditorialSectionHeader
                         eyebrow="Na dzis"
                         title="Plan dnia"
-                        meta={String(todayLessons.length)}
+                        onPress={() => router.push("/schedule")}
                     />
 
                     {nextLesson ? (
@@ -228,7 +228,7 @@ export default function Home() {
                     <EditorialSectionHeader
                         eyebrow="Na zywo"
                         title="Aktywnosc"
-                        meta={String(recentUpdates.length)}
+                        onPress={() => router.push("/messages")}
                     />
 
                     {recentUpdates.length > 0 ? (
@@ -267,63 +267,6 @@ export default function Home() {
                         />
                     )}
                 </View>
-
-                <View style={{ marginTop: 30 }}>
-                    <EditorialSectionHeader
-                        eyebrow="Szybkie akcje"
-                        title="Przejdz dalej"
-                    />
-
-                    <View
-                        style={{
-                            backgroundColor: palette.surface,
-                            borderRadius: 24,
-                            paddingVertical: 6,
-                        }}
-                    >
-                        {[
-                            {
-                                title: "Oceny",
-                                subtitle: "Zobacz srednia, przedmioty i szczegoly oceniania.",
-                                route: "/grades" as const,
-                                icon: "ribbon-outline" as const,
-                                tone: "primary" as const,
-                            },
-                            {
-                                title: "Frekwencja",
-                                subtitle: "Sprawdz obecnosc, opoznienia i nieobecnosci.",
-                                route: "/attendance" as const,
-                                icon: "stats-chart-outline" as const,
-                                tone: "warning" as const,
-                            },
-                            {
-                                title: "Wiadomosci",
-                                subtitle: "Przejdz do skrzynki odbiorczej i wyslanych wiadomosci.",
-                                route: "/messages" as const,
-                                icon: "chatbubble-ellipses-outline" as const,
-                                tone: "success" as const,
-                            },
-                            {
-                                title: "Plan lekcji",
-                                subtitle: "Otworz kalendarz i rozklad zajec.",
-                                route: "/schedule" as const,
-                                icon: "calendar-outline" as const,
-                                tone: "neutral" as const,
-                            },
-                        ].map((action, index) => (
-                            <View key={action.title} style={{ marginTop: index === 0 ? 0 : 12 }}>
-                                <EditorialRowCard
-                                    title={action.title}
-                                    subtitle={action.subtitle}
-                                    icon={action.icon}
-                                    tone={action.tone}
-                                    onPress={() => router.push(action.route)}
-                                />
-                            </View>
-                        ))}
-                    </View>
-                </View>
-
                 {loading ? (
                     <View style={{ marginTop: 28 }}>
                         <Text

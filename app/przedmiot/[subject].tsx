@@ -3,7 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal, Text, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { calculateWeightedAverage, getUserGrades, GradeItem, SubjectGrades } from "../api/grades";
+import {
+    calculateWeightedAverage,
+    getStoredGradesPeriod,
+    getUserGrades,
+    GradeItem,
+    setStoredGradesPeriod,
+    SubjectGrades,
+} from "../api/grades";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -19,9 +26,31 @@ export default function SubjectDetails() {
     const [subjectData, setSubjectData] = useState<SubjectGrades | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedGrade, setSelectedGrade] = useState<GradeItem | null>(null);
-    const [semesterFilter, setSemesterFilter] = useState<"semester1" | "semester2">(
-        "semester1"
-    );
+    const [semesterFilter, setSemesterFilterState] = useState<
+        "semester1" | "semester2"
+    >("semester1");
+
+    // Hydrate the semester selection from the same AsyncStorage key the
+    // grades tab uses (1 / 2), so the picked period is preserved when the
+    // user drills into a subject from that tab.
+    useEffect(() => {
+        let cancelled = false;
+        void getStoredGradesPeriod().then((stored) => {
+            if (!cancelled) {
+                setSemesterFilterState(
+                    stored === 2 ? "semester2" : "semester1"
+                );
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const setSemesterFilter = (next: "semester1" | "semester2") => {
+        setSemesterFilterState(next);
+        void setStoredGradesPeriod(next === "semester2" ? 2 : 1);
+    };
 
     useEffect(() => {
         const load = async () => {

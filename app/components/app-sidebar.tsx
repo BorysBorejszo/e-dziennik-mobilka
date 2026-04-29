@@ -55,6 +55,12 @@ export function AppSidebar() {
               <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Wiadomości</Text>
             </View>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => { close(); router.push('/homework'); }} style={{ paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="book-outline" size={18} color={theme === 'dark' ? '#fff' : '#0f172a'} />
+              <Text style={{ color: theme === 'dark' ? '#fff' : '#0f172a', marginLeft: 10 }}>Prace domowe</Text>
+            </View>
+          </TouchableOpacity>
           {/* Group header toggles expansion */}
           <TouchableOpacity onPress={() => setSettingsOpen(s => !s)} style={{ paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>

@@ -1,4 +1,38 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth, { getApiBaseUrl } from './auth';
+
+// ---------------------------------------------------------------------------
+// Persisted "selected period" preference
+// ---------------------------------------------------------------------------
+// The grades tab and the per-subject detail screen both let the user pick
+// between the first and second half of the school year. We persist that
+// choice so navigating between the two doesn't reset it.
+// ---------------------------------------------------------------------------
+
+const GRADES_PERIOD_STORAGE_KEY = '@e-dziennik:grades-period';
+
+export type GradesPeriod = 1 | 2;
+
+export const getStoredGradesPeriod = async (): Promise<GradesPeriod> => {
+  try {
+    const raw = await AsyncStorage.getItem(GRADES_PERIOD_STORAGE_KEY);
+    if (raw === '2') return 2;
+    if (raw === '1') return 1;
+  } catch {
+    // ignore — fall back to default
+  }
+  return 1;
+};
+
+export const setStoredGradesPeriod = async (
+  period: GradesPeriod
+): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(GRADES_PERIOD_STORAGE_KEY, String(period));
+  } catch {
+    // best-effort persistence; swallow errors
+  }
+};
 
 export type GradeItem = {
   value: number; // numeric value used for averages (1..6)

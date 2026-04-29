@@ -11,7 +11,9 @@ import {
 } from "react-native";
 import {
     calculateWeightedAverage,
+    getStoredGradesPeriod,
     getUserGrades,
+    setStoredGradesPeriod,
     SubjectGrades,
 } from "../api/grades";
 import {
@@ -59,7 +61,25 @@ export default function Grades() {
     const [expandedStat, setExpandedStat] = useState<"average" | "behavior" | null>(
         null
     );
-    const [periodFilter, setPeriodFilter] = useState<1 | 2>(1);
+    const [periodFilter, setPeriodFilterState] = useState<1 | 2>(1);
+
+    // Restore the previously selected period from AsyncStorage on mount, and
+    // persist any subsequent change so navigating into a subject and back
+    // (or returning to this tab later) keeps the same period selected.
+    useEffect(() => {
+        let cancelled = false;
+        void getStoredGradesPeriod().then((stored) => {
+            if (!cancelled) setPeriodFilterState(stored);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const setPeriodFilter = (next: 1 | 2) => {
+        setPeriodFilterState(next);
+        void setStoredGradesPeriod(next);
+    };
 
     const load = async () => {
         if (!user) return;

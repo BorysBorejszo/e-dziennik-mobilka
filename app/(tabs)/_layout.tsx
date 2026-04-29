@@ -59,6 +59,9 @@ export default function Layout() {
     if (isAnimatingRef.current) return;
     const target = -idx * screenWidth;
     isAnimatingRef.current = true;
+    // Update active index immediately so the tab bar highlight changes
+    // in sync with the page transition (not after the animation finishes).
+    setActiveIndex(idx);
     Animated.timing(offset, {
       toValue: target,
       duration: 220,
@@ -67,7 +70,6 @@ export default function Layout() {
       // finalize state
       translateX.setValue(0);
       offset.setValue(target);
-      setActiveIndex(idx);
       isAnimatingRef.current = false;
       // Note: we intentionally do NOT call router.replace here to avoid layout thrash.
     });
@@ -137,6 +139,9 @@ export default function Layout() {
         // go to next
         const next = (activeIndex + 1 + routes.length) % routes.length;
         const target = -next * screenWidth;
+        // Update highlight immediately so the tab bar reflects the new page
+        // at the same moment the slide animation starts.
+        setActiveIndex(next);
         // animate base offset to the next page while resetting the gesture translateX to 0
         Animated.parallel([
           Animated.timing(offset, {
@@ -153,7 +158,6 @@ export default function Layout() {
           // finalize
           translateX.setValue(0);
           offset.setValue(target);
-          setActiveIndex(next);
           isHorizontalRef.current = false;
           // do NOT call router.replace when swiping — update UI only (live preview + offset)
           // Navigation URL will still update when user taps the tab bar.
@@ -162,6 +166,8 @@ export default function Layout() {
         // go to prev
         const prev = (activeIndex - 1 + routes.length) % routes.length;
         const target = -prev * screenWidth;
+        // Update highlight immediately (same reason as above).
+        setActiveIndex(prev);
         Animated.parallel([
           Animated.timing(offset, {
             toValue: target,
@@ -176,7 +182,6 @@ export default function Layout() {
         ]).start(() => {
           translateX.setValue(0);
           offset.setValue(target);
-          setActiveIndex(prev);
           isHorizontalRef.current = false;
           // do NOT call router.replace when swiping — update UI only (live preview + offset)
           // Navigation URL will still update when user taps the tab bar.
@@ -200,7 +205,11 @@ export default function Layout() {
 
   const palette = getEditorialPalette(theme);
   const bg = palette.background;
-  const activeTint = palette.onPrimary;
+  // In dark mode use the same deep navy as the attendance hero card
+  // (#1e3a8a) so the selected-tab highlight matches the "Frekwencja"
+  // panel. Light mode keeps the palette's primary blue.
+  const activePillBg = theme === "dark" ? "#1e3a8a" : palette.primary;
+  const activeTint = theme === "dark" ? "#ffffff" : palette.onPrimary;
   const inactiveTint = palette.textSoft;
 
   const insets = useSafeAreaInsets();
@@ -291,7 +300,7 @@ export default function Layout() {
                       style={[
                         styles.tabPill,
                         focused
-                          ? { backgroundColor: palette.primary }
+                          ? { backgroundColor: activePillBg }
                           : null,
                       ]}
                     >

@@ -321,6 +321,12 @@ export default function Attendance() {
     const { theme } = useTheme();
     const { user } = useUser();
     const palette = getEditorialPalette(theme);
+    // The hero ("Frekwencja ogolna") card uses palette.primary which in dark
+    // mode is a vivid blue (#5c96ff). It reads as too garish against the dark
+    // background, so override with a deeper navy/indigo and pair it with a
+    // light foreground for the percentage / action label.
+    const heroBg = theme === "dark" ? "#1e3a8a" : palette.primary;
+    const heroFg = theme === "dark" ? "#ffffff" : palette.onPrimary;
     const [showCompact, setShowCompact] = useState(false);
     const [entries, setEntries] = useState<AttendanceEntry[] | null>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -547,7 +553,7 @@ export default function Attendance() {
                         <Card
                             style={[
                                 styles.heroCard,
-                                { backgroundColor: palette.primary },
+                                { backgroundColor: heroBg },
                             ]}
                         >
                             <View style={styles.heroTopRow}>
@@ -598,7 +604,7 @@ export default function Attendance() {
                                 style={[
                                     editorialType.display,
                                     {
-                                        color: palette.onPrimary,
+                                        color: heroFg,
                                     },
                                 ]}
                             >
@@ -632,7 +638,7 @@ export default function Attendance() {
                                 <Text
                                     style={[
                                         editorialType.meta,
-                                        { color: palette.onPrimary },
+                                        { color: heroFg },
                                     ]}
                                 >
                                     Usprawiedliw nieobecnosc
@@ -677,32 +683,43 @@ export default function Attendance() {
                     </View>
 
                     <View style={{ marginTop: 30 }}>
-                        <EditorialSectionHeader
-                            eyebrow="Dziennik obecnosci"
-                            title="Ostatnie wpisy"
-                            meta={(entries?.length ?? 0).toString().padStart(2, "0")}
-                        />
-
-                        {entries && entries.length > 0 ? (
-                            <View style={styles.listWrap}>
-                                {entries.map((entry, index) => (
-                                    <AttendanceEntryRow
-                                        key={`${entry.id ?? "attendance"}-${index}`}
-                                        entry={entry}
-                                        index={index}
-                                        palette={palette}
-                                        onPress={handleRecordClick}
+                        {(() => {
+                            const recentEntries = (entries ?? []).slice(0, 10);
+                            return (
+                                <>
+                                    <EditorialSectionHeader
+                                        eyebrow="Dziennik obecnosci"
+                                        title="Ostatnie wpisy"
+                                        meta={recentEntries.length
+                                            .toString()
+                                            .padStart(2, "0")}
                                     />
-                                ))}
-                            </View>
-                        ) : (
+
+                                    {recentEntries.length > 0 ? (
+                                        <View style={styles.listWrap}>
+                                            {recentEntries.map((entry, index) => (
+                                                <AttendanceEntryRow
+                                                    key={`${entry.id ?? "attendance"}-${index}`}
+                                                    entry={entry}
+                                                    index={index}
+                                                    palette={palette}
+                                                    onPress={handleRecordClick}
+                                                />
+                                            ))}
+                                        </View>
+                                    ) : null}
+                                </>
+                            );
+                        })()}
+
+                        {!entries || entries.length === 0 ? (
                             <View style={{ marginTop: 16 }}>
                                 <EmptyState
                                     title="Brak wpisow frekwencji"
                                     subtitle="Nowe obecnosci i nieobecnosci pojawia sie tutaj po synchronizacji."
                                 />
                             </View>
-                        )}
+                        ) : null}
                     </View>
 
                     <View style={{ marginTop: 30 }}>

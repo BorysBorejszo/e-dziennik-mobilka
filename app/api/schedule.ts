@@ -174,6 +174,40 @@ export const getUserSchedule = async (userId: number): Promise<ScheduleResponse>
         if (name) subjectMap.set(id, String(name));
     });
 
+    // Build teacherMap (id -> display name) FIRST, so the lessonsDictionary
+    // pass below can resolve names by id. Doing it the other way around
+    // (the previous order) left lessonTeacherMap empty for almost every
+    // lesson, which is exactly what surfaced as "Brak nauczyciela" on the UI.
+    teachersDictionary.forEach((teacher: any) => {
+        const id = Number(teacher?.id ?? teacher?.pk ?? NaN);
+        if (Number.isNaN(id)) return;
+        const name =
+            toDisplayName(teacher?.user ?? teacher) ??
+            teacher?.nazwa ??
+            teacher?.name ??
+            null;
+        if (name) teacherMap.set(id, String(name));
+    });
+
+    // Helper that pulls a teacher id out of a record regardless of whether
+    // the API exposes it as a flat *_id field or as a nested object.
+    const extractTeacherId = (item: any): number | null => {
+        const candidates = [
+            item?.nauczyciel_id,
+            item?.teacher_id,
+            item?.prowadzacy_id,
+            // these may be ids OR nested objects:
+            typeof item?.nauczyciel === "object" ? item?.nauczyciel?.id : item?.nauczyciel,
+            typeof item?.teacher === "object" ? item?.teacher?.id : item?.teacher,
+            typeof item?.prowadzacy === "object" ? item?.prowadzacy?.id : item?.prowadzacy,
+        ];
+        for (const candidate of candidates) {
+            const n = Number(candidate);
+            if (!Number.isNaN(n) && n > 0) return n;
+        }
+        return null;
+    };
+
     lessonsDictionary.forEach((item: any) => {
         const id = Number(item?.id ?? item?.pk ?? NaN);
         if (Number.isNaN(id)) return;
@@ -187,22 +221,21 @@ export const getUserSchedule = async (userId: number): Promise<ScheduleResponse>
             item?.przedmiot?.name;
         if (subjectName) subjectMap.set(id, String(subjectName));
 
-        const teacherId = Number(
-            item?.nauczyciel_id ?? item?.nauczyciel ?? item?.teacher_id ?? item?.teacher ?? NaN
-        );
-        if (!Number.isNaN(teacherId)) {
-            const teacherName = toDisplayName(item?.nauczyciel ?? item?.teacher);
-            if (teacherName) teacherMap.set(teacherId, teacherName);
-            const mappedTeacherName = teacherMap.get(teacherId);
-            if (mappedTeacherName) lessonTeacherMap.set(id, mappedTeacherName);
+        const teacherId = extractTeacherId(item);
+        if (teacherId !== null) {
+            // If the zajecia row already nests a full teacher object, fold
+            // it back into teacherMap so future lookups work too.
+            const inlineName =
+                toDisplayName(item?.nauczyciel?.user ?? item?.nauczyciel) ??
+                toDisplayName(item?.teacher?.user ?? item?.teacher) ??
+                toDisplayName(item?.prowadzacy?.user ?? item?.prowadzacy) ??
+                null;
+            if (inlineName && !teacherMap.has(teacherId)) {
+                teacherMap.set(teacherId, String(inlineName));
+            }
+            const resolvedName = teacherMap.get(teacherId);
+            if (resolvedName) lessonTeacherMap.set(id, resolvedName);
         }
-    });
-
-    teachersDictionary.forEach((teacher: any) => {
-        const id = Number(teacher?.id ?? teacher?.pk ?? NaN);
-        if (Number.isNaN(id)) return;
-        const name = toDisplayName(teacher?.user ?? teacher);
-        if (name) teacherMap.set(id, name);
     });
 
     const grouped: Record<number, Lesson[]> = { 0: [], 1: [], 2: [], 3: [], 4: [] };

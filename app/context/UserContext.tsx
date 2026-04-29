@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import auth, { decodeJWT } from '../api/auth';
+import { getStudentProfile } from '../api/users';
 
 export interface UserData {
   id: number;
@@ -98,42 +99,90 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
+        // Build the user object from whatever sources we have. The
+        // /api/auth/me-style endpoints don't always exist on this backend,
+        // so we fall back to /api/uczniowie/{id}/ (via getStudentProfile)
+        // any time we end up without a real first/last name.
+        let resolvedId: number | undefined = jwtUserId;
+        let resolvedUsername: string | undefined = storedUsername ?? undefined;
+        let resolvedName = '';
+        let resolvedAttendance: UserData['attendance'] = {
+          percentage: '',
+          present: 0,
+          late: 0,
+          absent: 0,
+        };
+        let resolvedGrades: UserData['grades'] = { average: '', behavior: '' };
+
         if (profile) {
           const candidate = profile.user ?? profile.uczen ?? profile;
-          // Prioritize user_id as requested by the user, and JWT payload
-          const id = jwtUserId ?? (Number(candidate.user_id ?? candidate.id ?? candidate.pk ?? profile.id ?? null) || undefined);
-          const first = candidate.first_name ?? candidate.firstName ?? candidate.given_name;
-          const last = candidate.last_name ?? candidate.lastName ?? candidate.family_name;
-          const name = (first || last) ? `${first ?? ''} ${last ?? ''}`.trim() : (candidate.name ?? candidate.username ?? 'Użytkownik');
-          const username = candidate.username ?? profile.username ?? undefined;
+          resolvedId =
+            jwtUserId ??
+            (Number(
+              candidate.user_id ??
+                candidate.id ??
+                candidate.pk ??
+                profile.id ??
+                null
+            ) || undefined);
+          const first =
+            candidate.first_name ??
+            candidate.firstName ??
+            candidate.given_name ??
+            candidate.imie;
+          const last =
+            candidate.last_name ??
+            candidate.lastName ??
+            candidate.family_name ??
+            candidate.nazwisko;
+          if (first || last) {
+            resolvedName = `${first ?? ''} ${last ?? ''}`.trim();
+          } else if (candidate.name) {
+            resolvedName = String(candidate.name);
+          }
+          resolvedUsername =
+            candidate.username ?? profile.username ?? resolvedUsername;
+          resolvedAttendance = profile.attendance ?? resolvedAttendance;
+          resolvedGrades = profile.grades ?? resolvedGrades;
+        }
 
-          console.log('[UserContext] Profile username:', username);
-          console.log('[UserContext] Profile ID (uczen_id):', id);
+        // If we still don't have a real name, ask the uczniowie endpoint
+        // directly using the uczen_id from JWT. This is the case the user
+        // was actually hitting on the home page.
+        if ((!resolvedName || resolvedName === 'Użytkownik') && resolvedId) {
+          try {
+            const studentProfile = await getStudentProfile(resolvedId);
+            if (studentProfile) {
+              const fromUczniowie = `${studentProfile.first_name ?? ''} ${
+                studentProfile.last_name ?? ''
+              }`.trim();
+              if (fromUczniowie) resolvedName = fromUczniowie;
+              if (!resolvedUsername && studentProfile.username) {
+                resolvedUsername = studentProfile.username;
+              }
+            }
+          } catch {
+            // ignore — we'll just fall through to the placeholder
+          }
+        }
 
+        const finalName = resolvedName || 'Użytkownik';
+
+        if (resolvedId) {
+          console.log('[UserContext] Resolved name:', finalName);
+          console.log('[UserContext] Resolved username:', resolvedUsername);
+          console.log('[UserContext] Resolved ID:', resolvedId);
           const u: UserData = {
-            id: id ?? -1,
-            serverId: id ?? undefined,
-            name,
-            username,
+            id: resolvedId,
+            serverId: resolvedId,
+            name: finalName,
+            username: resolvedUsername,
             role: jwtRole,
             classId: jwtClassId,
-            attendance: profile.attendance ?? { percentage: '', present: 0, late: 0, absent: 0 },
-            grades: profile.grades ?? { average: '', behavior: '' },
+            attendance: resolvedAttendance,
+            grades: resolvedGrades,
           };
           setUserState(u);
-        } else if (jwtUserId) {
-            // Fallback if profile fetch fails but we have JWT info
-             const u: UserData = {
-                id: jwtUserId,
-                serverId: jwtUserId,
-                name: 'Użytkownik',
-                username: storedUsername ?? undefined, // Use stored username from AsyncStorage
-                role: jwtRole,
-                classId: jwtClassId,
-                attendance: { percentage: '', present: 0, late: 0, absent: 0 },
-                grades: { average: '', behavior: '' },
-              };
-              setUserState(u);
         }
       } catch {
         // ignore

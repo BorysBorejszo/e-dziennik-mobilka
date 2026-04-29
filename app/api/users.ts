@@ -114,6 +114,54 @@ export const getAllUsers = async (): Promise<UserRecord[]> => {
   }
 };
 
+// Fetch a single student record from the uczniowie table by id and normalize
+// name fields. The /api/auth/me/ etc. endpoints don't always exist on this
+// backend, but /api/uczniowie/{id}/ does, so this is the reliable way to
+// resolve the logged-in user's first/last name from their uczen_id.
+export const getStudentProfile = async (
+  studentId: number
+): Promise<UserRecord | null> => {
+  if (!studentId || studentId <= 0) return null;
+  try {
+    const res = await auth.authenticatedFetch(
+      `${getApiBaseUrl()}/api/uczniowie/${studentId}/`,
+      { headers: headers() }
+    );
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    if (!json) return null;
+    const candidate = json.user ?? json.uczen ?? json;
+    const first =
+      candidate.first_name ??
+      candidate.firstName ??
+      candidate.given_name ??
+      candidate.imie ??
+      json.imie ??
+      json.first_name ??
+      undefined;
+    const last =
+      candidate.last_name ??
+      candidate.lastName ??
+      candidate.family_name ??
+      candidate.nazwisko ??
+      json.nazwisko ??
+      json.last_name ??
+      undefined;
+    return {
+      id: Number(json.id ?? json.pk ?? candidate.id ?? candidate.pk ?? studentId),
+      username: candidate.username ?? json.username ?? '',
+      email: candidate.email ?? json.email,
+      first_name: first ? String(first) : undefined,
+      last_name: last ? String(last) : undefined,
+      telefon: candidate.telefon ?? json.telefon,
+      data_urodzenia: candidate.data_urodzenia ?? json.data_urodzenia,
+    };
+  } catch (error) {
+    console.warn('[users] getStudentProfile failed:', error);
+    return null;
+  }
+};
+
 // Find user by username - RETURNS uczniowie.id for messages!
 export const findUserByUsername = async (username: string): Promise<UserRecord | null> => {
   try {

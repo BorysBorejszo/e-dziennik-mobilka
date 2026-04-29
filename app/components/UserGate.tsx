@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import auth, { decodeJWT } from '../api/auth';
 import { calculateWeightedAverage, getUserGrades } from '../api/grades';
+import { getStudentProfile } from '../api/users';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../theme/ThemeContext';
 import PasswordInput from './ui/PasswordInput';
@@ -92,24 +93,48 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
       const normalizeName = (p: any) => {
         if (!p) return null;
         const candidate = p.user ?? p.uczen ?? p;
-        const first = candidate.first_name ?? candidate.firstName ?? candidate.given_name ?? null;
-        const last = candidate.last_name ?? candidate.lastName ?? candidate.family_name ?? null;
+        const first = candidate.first_name ?? candidate.firstName ?? candidate.given_name ?? candidate.imie ?? null;
+        const last = candidate.last_name ?? candidate.lastName ?? candidate.family_name ?? candidate.nazwisko ?? null;
         if (first || last) return `${first ?? ''} ${last ?? ''}`.trim();
         return candidate.name ?? candidate.username ?? null;
+      };
+
+      // Helper: resolve a real first/last name from /api/uczniowie/{id}/ when
+      // the /me endpoints don't give us one. We also use this as a fallback
+      // when /me returned a profile but it didn't include the name fields.
+      const resolveNameFromUczniowie = async (studentId: number): Promise<string | null> => {
+        try {
+          const studentProfile = await getStudentProfile(studentId);
+          if (!studentProfile) return null;
+          const candidate = `${studentProfile.first_name ?? ''} ${studentProfile.last_name ?? ''}`.trim();
+          return candidate || null;
+        } catch {
+          return null;
+        }
       };
 
       if (profileJson) {
         const candidate = profileJson.user ?? profileJson.uczen ?? profileJson;
         const id = Number(candidate.id ?? candidate.pk ?? profileJson.id ?? null) || undefined;
-        const name = normalizeName(profileJson) ?? 'Użytkownik';
+        let name = normalizeName(profileJson);
         const profileUsername = candidate.username ?? candidate.userName ?? loggedUsername;
         const attendance = profileJson.attendance ?? profileJson.presence ?? { percentage: '', present: 0, late: 0, absent: 0 };
         const grades = profileJson.grades ?? { average: '', behavior: '' };
 
+        // If /me didn't include the name fields, try the uczniowie endpoint.
+        if ((!name || name === 'Użytkownik') && id) {
+          const fromUczniowie = await resolveNameFromUczniowie(id);
+          if (fromUczniowie) name = fromUczniowie;
+        }
+        // Last resort: if the user just registered, use what they typed.
+        if ((!name || name === 'Użytkownik') && (firstName || lastName)) {
+          name = `${firstName ?? ''} ${lastName ?? ''}`.trim();
+        }
+
         const userObj = {
           id: id ?? -1,
           serverId: id ?? undefined,
-          name,
+          name: name || 'Użytkownik',
           username: profileUsername,
           attendance,
           grades,
@@ -128,10 +153,20 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
           // ignore
         }
 
+        // Try the uczniowie endpoint as a real-name source before falling
+        // back to the literal "Użytkownik".
+        let fallbackName: string | null = null;
+        if (jwtId && jwtId > 0) {
+          fallbackName = await resolveNameFromUczniowie(jwtId);
+        }
+        if (!fallbackName && (firstName || lastName)) {
+          fallbackName = `${firstName ?? ''} ${lastName ?? ''}`.trim() || null;
+        }
+
         const fallbackUser = {
           id: jwtId ?? -1,
           serverId: jwtId ?? undefined,
-          name: 'Użytkownik',
+          name: fallbackName || 'Użytkownik',
           username: loggedUsername,
           attendance: { percentage: '', present: 0, late: 0, absent: 0 },
           grades: { average: '', behavior: '' },

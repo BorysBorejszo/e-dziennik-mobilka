@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { getCurrentDjangoUserId, getDjangoIdFromToken } from "../api/auth";
-import { calculateWeightedAverage, getUserGrades } from "../api/grades";
 import { getUserHomeData, TodayLesson, UpdateItem } from "../api/home";
 import {
     EditorialRowCard,
@@ -11,7 +10,6 @@ import {
 } from "../components/editorial/MobileBlocks";
 import Header from "../components/Header";
 import EmptyState from "../components/ui/EmptyState";
-import { convertToDisplayMessage, getInboxMessages } from "../api/messages";
 import { useUser } from "../context/UserContext";
 import { editorialType, getEditorialPalette } from "../theme/editorial";
 import { useTheme } from "../theme/ThemeContext";
@@ -107,32 +105,17 @@ export default function Home() {
         setLoading(true);
 
         try {
-            const [homeData, gradesRes, messageUserId] = await Promise.all([
-                getUserHomeData(idToUse),
-                getUserGrades(idToUse).catch(() => null),
-                resolveMessageUserId(),
-            ]);
+            const messageUserId = await resolveMessageUserId();
+            const homeData = await getUserHomeData({
+                studentId: idToUse,
+                messageUserId,
+                classId: user.classId ?? null,
+            });
 
             setTodayLessons(homeData.todayLessons);
             setRecentUpdates(homeData.recentUpdates);
-
-            if (gradesRes) {
-                const all = gradesRes.subjects.flatMap((subject) => subject.grades);
-                const avg = calculateWeightedAverage(all);
-                setGradeAverage(avg ? avg.toFixed(2) : "—");
-            } else {
-                setGradeAverage("—");
-            }
-
-            if (messageUserId) {
-                const inbox = await getInboxMessages(messageUserId);
-                const displayMessages = inbox.map((record) =>
-                    convertToDisplayMessage(record, messageUserId)
-                );
-                setUnreadCount(displayMessages.filter((message) => message.unread).length);
-            } else {
-                setUnreadCount(0);
-            }
+            setGradeAverage(homeData.gradeAverage ?? "—");
+            setUnreadCount(homeData.unreadMessageCount);
         } catch (error) {
             console.error("[home] Failed to load dashboard", error);
             setTodayLessons([]);
@@ -210,7 +193,11 @@ export default function Home() {
                                 title={nextLesson.subject}
                                 subtitle={`Sala ${nextLesson.room}`}
                                 meta={nextLesson.time}
-                                badge="Nastepna lekcja"
+                                badge={
+                                    nextLesson.inProgress
+                                        ? "Trwa teraz"
+                                        : "Nastepna lekcja"
+                                }
                                 icon="time-outline"
                                 tone="primary"
                                 onPress={() => router.push("/schedule")}

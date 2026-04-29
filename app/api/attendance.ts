@@ -111,12 +111,16 @@ const mapApiRecord = (item: any, statusesMap: Map<number, string>): AttendanceRe
                 0
         ) || null,
         status: mapStatusName(statusId, statusLabel, statusesMap),
+        // We deliberately leave przedmiot undefined when the API doesn't
+        // return a subject name on the record itself. The real name is
+        // resolved later via the godzina_lekcyjna -> plan-wpisy -> zajecia
+        // -> przedmioty chain (see resolveSubjectName below).
         przedmiot:
             item?.przedmiot ??
             item?.subject ??
             item?.nazwa_przedmiotu ??
             item?.lesson?.subject ??
-            "Lekcja",
+            undefined,
         nauczyciel:
             item?.nauczyciel ??
             item?.teacher ??
@@ -124,6 +128,169 @@ const mapApiRecord = (item: any, statusesMap: Map<number, string>): AttendanceRe
             item?.lesson?.teacher ??
             undefined,
     };
+};
+
+// ---------------------------------------------------------------------------
+// Subject name resolution
+// ---------------------------------------------------------------------------
+// /api/frekwencja/ returns only godzina_lekcyjna (a lesson-hour id) and not
+// a subject name. To turn that id into a human-readable subject we walk:
+//
+//   godzina_lekcyjna  --(plan-wpisy)-->  zajecia  --(zajecia)-->  przedmiot
+//   przedmiot         --(przedmioty)-->  nazwa
+//
+// Because plan-wpisy / zajecia / przedmioty change rarely we fetch each list
+// once per session and cache the resulting lookup tables for a few minutes.
+// ---------------------------------------------------------------------------
+
+type SubjectResolutionMaps = {
+    przedmiotyById: Map<number, string>;
+    zajeciaById: Map<number, number>;
+    planByLessonHourDay: Map<string, number>;
+    planByLessonHour: Map<number, number>;
+};
+
+const fetchListAuthenticated = async (path: string): Promise<any[]> => {
+    try {
+        const res = await auth.authenticatedFetch(`${getApiBaseUrl()}${path}`, {
+            headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
+        });
+        if (!res.ok) return [];
+        const json = await res.json().catch(() => null);
+        return extractList(json);
+    } catch {
+        return [];
+    }
+};
+
+const SUBJECT_MAPS_TTL_MS = 5 * 60 * 1000;
+let cachedSubjectMaps: {
+    maps: SubjectResolutionMaps;
+    expires: number;
+} | null = null;
+
+const buildSubjectResolutionMaps = async (): Promise<SubjectResolutionMaps> => {
+    const [przedmiotyList, zajeciaList, planList] = await Promise.all([
+        fetchListAuthenticated("/api/przedmioty/"),
+        fetchListAuthenticated("/api/zajecia/"),
+        fetchListAuthenticated("/api/plan-wpisy/"),
+    ]);
+
+    const przedmiotyById = new Map<number, string>();
+    for (const item of przedmiotyList) {
+        const id = Number(item?.id ?? item?.pk ?? NaN);
+        const name =
+            item?.nazwa ??
+            item?.name ??
+            item?.nazwa_skrocona ??
+            null;
+        if (!Number.isNaN(id) && name) {
+            przedmiotyById.set(id, String(name));
+        }
+    }
+
+    const zajeciaById = new Map<number, number>();
+    for (const item of zajeciaList) {
+        const id = Number(item?.id ?? item?.pk ?? NaN);
+        const przedmiotId = Number(
+            item?.przedmiot ??
+                item?.przedmiot_id ??
+                item?.subject ??
+                item?.subject_id ??
+                item?.przedmiot?.id ??
+                NaN
+        );
+        if (!Number.isNaN(id) && !Number.isNaN(przedmiotId)) {
+            zajeciaById.set(id, przedmiotId);
+        }
+    }
+
+    const planByLessonHourDay = new Map<string, number>();
+    const planByLessonHour = new Map<number, number>();
+    for (const item of planList) {
+        const ghId = Number(
+            item?.godzina_lekcyjna ??
+                item?.godzina_lekcyjna_id ??
+                item?.lesson_hour ??
+                item?.godzina_lekcyjna?.id ??
+                NaN
+        );
+        const day = Number(
+            item?.dzien_tygodnia ?? item?.dzien ?? item?.day_of_week ?? NaN
+        );
+        const zajeciaId = Number(
+            item?.zajecia ??
+                item?.zajecia_id ??
+                item?.lesson ??
+                item?.zajecia?.id ??
+                NaN
+        );
+        if (Number.isNaN(ghId) || Number.isNaN(zajeciaId)) continue;
+        if (!Number.isNaN(day)) {
+            planByLessonHourDay.set(`${ghId}|${day}`, zajeciaId);
+        }
+        if (!planByLessonHour.has(ghId)) {
+            planByLessonHour.set(ghId, zajeciaId);
+        }
+    }
+
+    return {
+        przedmiotyById,
+        zajeciaById,
+        planByLessonHourDay,
+        planByLessonHour,
+    };
+};
+
+const getSubjectResolutionMaps = async (): Promise<SubjectResolutionMaps> => {
+    const now = Date.now();
+    if (cachedSubjectMaps && cachedSubjectMaps.expires > now) {
+        return cachedSubjectMaps.maps;
+    }
+    const maps = await buildSubjectResolutionMaps();
+    cachedSubjectMaps = { maps, expires: now + SUBJECT_MAPS_TTL_MS };
+    return maps;
+};
+
+const resolveSubjectName = (
+    record: AttendanceRecord,
+    maps: SubjectResolutionMaps
+): string | null => {
+    const ghId = record.godzina_lekcyjna_id;
+    if (!ghId) return null;
+
+    // Try several day-of-week conventions because different backends use
+    // different formats (ISO Mon=1, JS Sun=0, or Mon=0).
+    const dayCandidates: number[] = [];
+    if (record.data) {
+        const d = new Date(record.data);
+        if (!Number.isNaN(d.getTime())) {
+            const js = d.getDay(); // Sun=0..Sat=6
+            const isoMon1 = js === 0 ? 7 : js; // Mon=1..Sun=7
+            const isoMon0 = isoMon1 - 1; // Mon=0..Sun=6
+            dayCandidates.push(isoMon1, js, isoMon0);
+        }
+    }
+
+    let zajeciaId: number | undefined;
+    for (const day of dayCandidates) {
+        const found = maps.planByLessonHourDay.get(`${ghId}|${day}`);
+        if (found != null) {
+            zajeciaId = found;
+            break;
+        }
+    }
+    if (zajeciaId == null) {
+        // Fallback: any zajecia that uses this lesson hour. Less precise but
+        // still better than returning the literal "Lekcja".
+        zajeciaId = maps.planByLessonHour.get(ghId);
+    }
+    if (zajeciaId == null) return null;
+
+    const przedmiotId = maps.zajeciaById.get(zajeciaId);
+    if (przedmiotId == null) return null;
+
+    return maps.przedmiotyById.get(przedmiotId) ?? null;
 };
 
 const loadStatusesMap = async (): Promise<Map<number, string>> => {
@@ -183,7 +350,19 @@ export const getAttendanceById = async (
         if (!res.ok) return null;
         const json = await res.json().catch(() => null);
         if (!json) return null;
-        return mapApiRecord(json, statusesMap);
+        const record = mapApiRecord(json, statusesMap);
+        // Same subject-name resolution as getUserAttendance so the details
+        // modal also shows a real subject instead of "Lekcja".
+        if (!record.przedmiot) {
+            try {
+                const maps = await getSubjectResolutionMaps();
+                const resolved = resolveSubjectName(record, maps);
+                if (resolved) record.przedmiot = resolved;
+            } catch {
+                // ignore — fall back to undefined / consumer default
+            }
+        }
+        return record;
     } catch {
         return null;
     }
@@ -281,12 +460,33 @@ export const getUserAttendance = async (
     userId: number
 ): Promise<AttendanceResponse> => {
     const records = await getAttendance(userId);
-    const recent = records.map((record) => ({
-        id: record.id,
-        date: record.data,
-        subject: record.przedmiot || "Lekcja",
-        status: record.status || "Nieobecny",
-    }));
+
+    // Resolve subject names for any record whose API payload didn't include
+    // one. Maps are cached so this is one batch of fetches per session.
+    let subjectMaps: SubjectResolutionMaps | null = null;
+    if (records.some((record) => !record.przedmiot)) {
+        try {
+            subjectMaps = await getSubjectResolutionMaps();
+        } catch {
+            subjectMaps = null;
+        }
+    }
+
+    const recent = records.map((record) => {
+        const fromRecord = record.przedmiot && record.przedmiot.trim();
+        const fromChain =
+            !fromRecord && subjectMaps
+                ? resolveSubjectName(record, subjectMaps)
+                : null;
+        const subject = fromRecord || fromChain || "Lekcja";
+
+        return {
+            id: record.id,
+            date: record.data,
+            subject,
+            status: record.status || "Nieobecny",
+        };
+    });
     return { recent };
 };
 

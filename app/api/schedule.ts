@@ -6,6 +6,17 @@ export type Lesson = {
     time: string;
     room: string;
     teacher: string;
+    /**
+     * When the lesson is being run by a substitute, this is the original
+     * (regularly scheduled) teacher. The `teacher` field is then the
+     * substitute. Both are populated whenever any substitution information
+     * is available so the UI can render "Zastępstwo: X (zamiast Y)".
+     */
+    originalTeacher?: string;
+    /** Substitute teacher's display name when applicable. */
+    substituteTeacher?: string;
+    /** Convenience flag — true iff a substitution is in effect. */
+    isSubstitute?: boolean;
 };
 
 export type DaySchedule = {
@@ -266,7 +277,7 @@ export const getUserSchedule = async (userId: number): Promise<ScheduleResponse>
             entry?.subject ??
             "Brak nazwy przedmiotu";
         const room = entry?.sala ?? entry?.room ?? "Sala";
-        const teacher =
+        const originalTeacher =
             lessonTeacherMap.get(zajeciaRef) ??
             teacherMap.get(teacherRef) ??
             entry?.nauczyciel_nazwa ??
@@ -276,12 +287,62 @@ export const getUserSchedule = async (userId: number): Promise<ScheduleResponse>
             entry?.prowadzacy ??
             "Brak nauczyciela";
 
+        // Substitution: backend may carry the substitute teacher under any
+        // of these field names. We look both for an id (resolved through
+        // teacherMap) and for an inline name string.
+        const substituteCandidates: any[] = [
+            entry?.zastepstwo,
+            entry?.zastapstwo,
+            entry?.nauczyciel_zastepujacy,
+            entry?.nauczyciel_zastepca,
+            entry?.zastepca,
+            entry?.zastepca_id,
+            entry?.substitute_teacher,
+            entry?.substitute_teacher_id,
+        ];
+        let substituteName: string | undefined;
+        for (const candidate of substituteCandidates) {
+            if (candidate == null || candidate === "") continue;
+            if (typeof candidate === "object") {
+                const fromObj =
+                    toDisplayName(candidate?.user ?? candidate) ??
+                    candidate?.nazwa ??
+                    null;
+                if (candidate?.id != null) {
+                    substituteName =
+                        teacherMap.get(Number(candidate.id)) ??
+                        fromObj ??
+                        undefined;
+                } else if (fromObj) {
+                    substituteName = fromObj;
+                }
+            } else if (typeof candidate === "number") {
+                substituteName = teacherMap.get(candidate) ?? substituteName;
+            } else if (typeof candidate === "string") {
+                const asNum = Number(candidate);
+                if (!Number.isNaN(asNum) && asNum > 0) {
+                    substituteName = teacherMap.get(asNum) ?? substituteName;
+                } else {
+                    substituteName = candidate;
+                }
+            }
+            if (substituteName) break;
+        }
+
+        const isSubstitute = Boolean(substituteName);
+        const teacher = isSubstitute
+            ? String(substituteName)
+            : String(originalTeacher);
+
         grouped[dayIndex].push({
             id: Number.isNaN(entryId) ? Math.floor(Math.random() * 1_000_000_000) : entryId,
             subject: String(subject),
             time: formatTimeRange(hourInfo?.from, hourInfo?.to) || hourInfo?.label || "—",
             room: String(room),
-            teacher: String(teacher),
+            teacher,
+            originalTeacher: isSubstitute ? String(originalTeacher) : undefined,
+            substituteTeacher: isSubstitute ? String(substituteName) : undefined,
+            isSubstitute: isSubstitute || undefined,
         });
     });
 

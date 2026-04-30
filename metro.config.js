@@ -1,5 +1,5 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const { withNativeWind } = require('nativewind/metro');
+const { withNativeWind } = require('nativewind/dist/metro');
  
 const config = getDefaultConfig(__dirname)
  

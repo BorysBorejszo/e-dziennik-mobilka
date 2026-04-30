@@ -35,7 +35,7 @@ const PasswordInput = forwardRef<TextInput, Props>(({ value, onChangeText, place
       if (inputRef.current && (inputRef.current as any).setNativeProps) {
         (inputRef.current as any).setNativeProps({ selection: { start: value?.length ?? 0, end: value?.length ?? 0 } });
       }
-    } catch (err) {
+    } catch {
       // ignore
     }
   }, [value]);

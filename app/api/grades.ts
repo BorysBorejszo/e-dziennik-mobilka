@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import auth, { getApiBaseUrl } from './auth';
+import { authenticatedFetch, getApiBaseUrl } from './auth';
 
 // ---------------------------------------------------------------------------
 // Persisted "selected period" preference
@@ -58,88 +58,11 @@ export type GradesResponse = {
 
 const DEFAULT_ADMIN_KEY = '7KU2mc6ZxflGYE5QqjmZ7wcN0OI3rX1p';
 
-// Try to resolve numeric subject IDs to human-readable names by probing likely subject endpoints.
-const resolveSubjectNames = async (ids: number[]): Promise<Record<number, string | null>> => {
-  const out: Record<number, string | null> = {};
-  for (const id of ids) out[id] = null;
-
-  const patterns: Array<(id: number) => string> = [
-    (i) => `${getApiBaseUrl()}/api/przedmioty/${i}/`,
-    (i) => `${getApiBaseUrl()}/api/przedmiot/${i}/`,
-    (i) => `${getApiBaseUrl()}/api/przedmioty/?id=${i}`,
-    (i) => `${getApiBaseUrl()}/api/przedmioty/?pk=${i}`,
-    (i) => `${getApiBaseUrl()}/api/przedmioty/?przedmiot_id=${i}`,
-    (i) => `${getApiBaseUrl()}/api/przedmioty/`,
-    (i) => `${getApiBaseUrl()}/api/przedmiot/`,
-  ];
-
-  const extractName = (obj: any) => obj?.nazwa ?? obj?.name ?? obj?.title ?? obj?.label ?? null;
-
-  for (const id of ids) {
-    // if already resolved (race) skip
-    if (out[id]) continue;
-    for (const makeUrl of patterns) {
-      const url = makeUrl(id);
-      try {
-        const res = await auth.authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
-        if (!res || !res.ok) continue;
-        let json: any = null;
-        try { json = await res.json(); } catch (e) { continue; }
-
-        // If response is an array or contains results/data/items, search for matching id
-        const list = extractList(json) ?? (Array.isArray(json) ? json : null);
-        if (Array.isArray(list)) {
-          const found = list.find((it: any) => Number(it.id ?? it.pk ?? it.pk_id ?? it.przedmiot_id ?? it.id_przedmiotu ?? -1) === id);
-          if (found) {
-            const name = extractName(found);
-            if (name) {
-              out[id] = name;
-              break;
-            }
-          }
-        }
-
-        // If single object returned, try to use it directly
-        if (!Array.isArray(json)) {
-          const maybe = json;
-          // sometimes the API returns { id, nazwa }
-          if (Number(maybe.id ?? maybe.pk ?? maybe.przedmiot_id ?? -1) === id) {
-            const name = extractName(maybe);
-            if (name) {
-              out[id] = name;
-              break;
-            }
-          }
-          // or it might return { results: [...] }
-          const maybeList = extractList(json);
-          if (Array.isArray(maybeList)) {
-            const f = maybeList.find((it: any) => Number(it.id ?? it.pk ?? it.przedmiot_id ?? -1) === id);
-            if (f) {
-              const name = extractName(f);
-              if (name) {
-                out[id] = name;
-                break;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // ignore and try next pattern
-        // eslint-disable-next-line no-console
-        // console.debug('[grades] subject resolve error', url, e);
-        continue;
-      }
-    }
-  }
-
-  return out;
-};
-
 // Try to find a subject ID by its name (best-effort). Useful when user provides name but server
 // requires przedmiot_id. Returns number|null.
 const findSubjectIdByName = async (name: string): Promise<number | null> => {
   if (!name) return null;
-  const patterns: Array<(q: string) => string> = [
+  const patterns: ((q: string) => string)[] = [
     (q) => `${getApiBaseUrl()}/api/przedmioty/?search=${encodeURIComponent(q)}`,
     (q) => `${getApiBaseUrl()}/api/przedmioty/?nazwa=${encodeURIComponent(q)}`,
     (q) => `${getApiBaseUrl()}/api/przedmioty/?name=${encodeURIComponent(q)}`,
@@ -156,7 +79,7 @@ const findSubjectIdByName = async (name: string): Promise<number | null> => {
   for (const makeUrl of patterns) {
     const url = makeUrl(name);
     try {
-  const res = await auth.authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const res = await authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
       if (!res || !res.ok) continue;
       const json = await res.json().catch(() => null);
       const list = extractList(json) ?? (Array.isArray(json) ? json : null);
@@ -172,8 +95,7 @@ const findSubjectIdByName = async (name: string): Promise<number | null> => {
         // single object
         if (matchName(json, target)) return Number(json.id ?? json.pk ?? json.przedmiot_id ?? null) || null;
       }
-    } catch (e) {
-      // ignore
+    } catch {
       continue;
     }
   }
@@ -221,7 +143,7 @@ const normalizeDate = (raw: any): string => {
 };
 
 // List subjects (przedmioty) - used by UI when creating grades so user can pick from available subjects
-export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string }>> => {
+export const listSubjects = async (): Promise<{ id: number; nazwa: string }[]> => {
   const startUrl = `${getApiBaseUrl()}/api/przedmioty/`;
   try {
     const accumulated: any[] = [];
@@ -234,7 +156,7 @@ export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string 
       if (seenUrls.has(nextUrl)) break;
       seenUrls.add(nextUrl);
 
-  const res: Response = await auth.authenticatedFetch(nextUrl, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const res: Response = await authenticatedFetch(nextUrl, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
   if (!res || !res.ok) break;
   const json: any = await res.json().catch(() => null);
 
@@ -269,7 +191,7 @@ export const listSubjects = async (): Promise<Array<{ id: number; nazwa: string 
     }
 
     return Array.from(map.entries()).map(([id, nazwa]) => ({ id, nazwa }));
-  } catch (e) {
+  } catch {
     return [];
   }
 };
@@ -331,18 +253,16 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
   ];
 
   // Debug: log which userId we're querying
-  // eslint-disable-next-line no-console
   console.debug('[grades] getUserGrades for userId=', userId);
 
   const allItems: any[] = [];
 
   for (const url of endpoints) {
     try {
-      const res = await auth.authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+      const res = await authenticatedFetch(url, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
       let json: any = null;
-      try { json = await res.json(); } catch (e) { /* ignore parse errors */ }
+      try { json = await res.json(); } catch { /* ignore parse errors */ }
       // debug
-      // eslint-disable-next-line no-console
       console.debug('[grades] fetched', url, 'status=', res?.status, 'jsonSample=', Array.isArray(json) ? json.slice(0,3) : (json && typeof json === 'object' ? Object.keys(json).slice(0,5) : json));
       if (!res || !res.ok) continue;
       const list = extractList(json) ?? (json && Array.isArray(json.oceny) ? json.oceny : null) ?? [];
@@ -350,15 +270,12 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
         allItems.push(...list);
       }
     } catch (e) {
-      // ignore and continue
-      // eslint-disable-next-line no-console
       console.warn('[grades] fetch error', url, e);
       continue;
     }
   }
 
   // Debug: log number of fetched items and a tiny sample
-  // eslint-disable-next-line no-console
   console.debug('[grades] fetched total items count=', allItems.length, 'sample=', allItems.slice(0,5));
 
   // Keep only items that belong to the requested user (some APIs return global lists when params are ignored).
@@ -484,7 +401,7 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
   // behavior category if present. This creates a clear, dedicated category for behavior points.
   let behaviorFromPoints: SubjectGrades | undefined = undefined;
   try {
-  const res = await auth.authenticatedFetch(`${getApiBaseUrl()}/api/zachowanie-punkty/?user_id=${userId}`, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const res = await authenticatedFetch(`${getApiBaseUrl()}/api/zachowanie-punkty/?user_id=${userId}`, { headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
     if (res && res.ok) {
       const json = await res.json().catch(() => null);
       const list = extractList(json) ?? (Array.isArray(json) ? json : (json?.results ?? null)) ?? [];
@@ -500,7 +417,7 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
         behaviorFromPoints = { subject: 'Zachowanie (punkty)', grades: mapped };
       }
     }
-  } catch (e) {
+  } catch {
     // ignore fetch errors for behavior points
   }
 
@@ -536,10 +453,9 @@ export const createGrade = async (
 
   // OPTIONS probe for debugging (ignore failures)
   try {
-  const opt = await auth.authenticatedFetch(url, { method: 'OPTIONS', headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
+  const opt = await authenticatedFetch(url, { method: 'OPTIONS', headers: { 'ADMIN-KEY': DEFAULT_ADMIN_KEY } });
     if (opt.ok) {
       const meta = await opt.json().catch(() => null);
-      // eslint-disable-next-line no-console
       console.debug('[grades] options', url, meta);
     }
   } catch (e) {
@@ -581,8 +497,6 @@ export const createGrade = async (
       const idFound = await findSubjectIdByName(payload.subject);
       if (idFound) resolvedSubjectId = idFound;
     } catch (e) {
-      // ignore failures, we'll still try name-based variants
-      // eslint-disable-next-line no-console
       console.debug && console.debug('[grades] subject id resolution failed', e);
     }
   }
@@ -592,11 +506,10 @@ export const createGrade = async (
     const pl = { ...payload, subjectId: resolvedSubjectId ?? payload.subjectId };
     const bodyCandidate = makeBody(v, pl);
     try {
-  const res = await auth.authenticatedFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(bodyCandidate) });
+  const res = await authenticatedFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(bodyCandidate) });
       const text = await res.text().catch(() => '');
       let json: any = null;
-      try { json = text ? JSON.parse(text) : null; } catch (e) { json = null; }
-      // eslint-disable-next-line no-console
+      try { json = text ? JSON.parse(text) : null; } catch { json = null; }
       console.debug('[grades] create attempt', v, url, 'status=', res.status, 'json=', json, 'text=', text?.slice?.(0,200));
       if (res.ok) return json ?? text;
       if (res.status >= 400 && res.status < 500) {
@@ -610,7 +523,6 @@ export const createGrade = async (
       lastErr = text || `HTTP ${res.status}`;
     } catch (e) {
       lastErr = (e as any)?.message ?? String(e);
-      // eslint-disable-next-line no-console
       console.warn('[grades] attempt error', v, lastErr);
       continue;
     }
@@ -629,11 +541,10 @@ export const createBehaviorPoints = async (payload: { uczen_id: number; punkty: 
     nauczyciel_wpisujacy_id: payload.nauczyciel_wpisujacy_id ?? null,
   };
 
-  const res = await auth.authenticatedFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(body) });
+  const res = await authenticatedFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'ADMIN-KEY': DEFAULT_ADMIN_KEY }, body: JSON.stringify(body) });
   const text = await res.text().catch(() => '');
   let json: any = null;
-  try { json = text ? JSON.parse(text) : null; } catch (e) { json = null; }
-  // eslint-disable-next-line no-console
+  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
   console.debug('[grades] createBehavior', url, 'status=', res.status, 'json=', json, 'text=', text?.slice?.(0,200));
   if (!res.ok) throw new Error(json ?? text ?? `HTTP ${res.status}`);
   return json ?? text;

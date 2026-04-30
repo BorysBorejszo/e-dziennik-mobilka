@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import auth, { getApiBaseUrl } from "./auth";
+import { authenticatedFetch, getApiBaseUrl } from "./auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,7 +38,7 @@ const extractList = (json: any): any[] => {
 
 const fetchListAuthenticated = async (path: string): Promise<any[]> => {
     try {
-        const res = await auth.authenticatedFetch(`${getApiBaseUrl()}${path}`, {
+        const res = await authenticatedFetch(`${getApiBaseUrl()}${path}`, {
             headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
         });
         if (!res.ok) return [];

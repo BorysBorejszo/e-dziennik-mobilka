@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import auth, { decodeJWT } from '../api/auth';
+import { getAccessToken, authenticatedFetch, clearTokens, decodeJWT } from '../api/auth';
 import { getStudentProfile } from '../api/users';
 
 export interface UserData {
@@ -43,7 +43,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     (async () => {
       try {
-        const access = await auth.getAccessToken();
+        const access = await getAccessToken();
         if (!access) {
           setReady(true);
           return;
@@ -54,8 +54,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         try {
           storedUsername = await AsyncStorage.getItem('@e-dziennik:username');
           console.log('[UserContext] Loaded stored username:', storedUsername);
-        } catch (e) {
-          console.log('[UserContext] Failed to load stored username:', e);
+        } catch {
+          // ignore — stored username unavailable
         }
 
         // Decode JWT to get user info immediately
@@ -68,7 +68,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             jwtUserId = payload.uczen_id;
             jwtRole = payload.role;
             jwtClassId = payload.klasa_id;
-            // eslint-disable-next-line no-console
             console.log('[UserContext] JWT payload:', payload);
             console.log('[UserContext] JWT uczen_id:', jwtUserId);
             console.log('[UserContext] JWT full payload keys:', Object.keys(payload));
@@ -88,13 +87,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         let profile: any = null;
         for (const ep of candidates) {
           try {
-            const res = await auth.authenticatedFetch(ep);
+            const res = await authenticatedFetch(ep);
             if (!res || !res.ok) continue;
             const json = await res.json().catch(() => null);
             if (!json) continue;
             profile = json;
             break;
-          } catch (e) {
+          } catch {
             continue;
           }
         }
@@ -200,7 +199,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     AsyncStorage.removeItem('selectedUserId').catch(() => {});
     AsyncStorage.removeItem('@e-dziennik:username').catch(() => {}); // Clear stored username
     // also clear tokens in case of logout
-    auth.clearTokens().catch(() => {});
+    clearTokens().catch(() => {});
   };
 
   const switchUser = (userId: number) => {

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import auth, { decodeJWT } from '../api/auth';
+import { login, register, authenticatedFetch, getAccessToken, decodeJWT } from '../api/auth';
 import { calculateWeightedAverage, getUserGrades } from '../api/grades';
 import { getStudentProfile } from '../api/users';
 import { useUser } from '../context/UserContext';
@@ -11,13 +11,12 @@ import PasswordInput from './ui/PasswordInput';
 const USERNAME_KEY = '@e-dziennik:username';
 
 export default function UserGate({ children }: { children: React.ReactNode }) {
-  const { user, users, setUser, ready } = useUser();
+  const { user, setUser, ready } = useUser();
   const { theme } = useTheme();
   const bg = theme === 'dark' ? '#000' : '#fff';
   const textClass = theme === 'dark' ? 'text-white' : 'text-black';
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   // email used for registration only
   const [isRegistering, setIsRegistering] = useState(false);
@@ -52,9 +51,9 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
         }
         // use email as username by default
         loggedUsername = email;
-        await auth.register(email, password, { email, first_name: firstName, last_name: lastName });
+        await register(email, password, { email, first_name: firstName, last_name: lastName });
       } else {
-        await auth.login(username, password);
+        await login(username, password);
       }
       
       // Store username for later use
@@ -76,17 +75,17 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
         ];
         for (const ep of candidates) {
           try {
-            const res = await auth.authenticatedFetch(`${base}${ep}`);
+            const res = await authenticatedFetch(`${base}${ep}`);
             if (!res || !res.ok) continue;
             const json = await res.json().catch(() => null);
             if (!json) continue;
             profileJson = json;
             break;
-          } catch (e) {
+          } catch {
             continue;
           }
         }
-      } catch (e) {
+      } catch {
         // ignore profile fetch errors
       }
 
@@ -139,17 +138,16 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
           attendance,
           grades,
         } as any;
-        // eslint-disable-next-line no-console
         console.debug('[UserGate] setting user from server profile', userObj);
         setUser(userObj);
       } else {
         // fallback: try to decode JWT to at least get an id so we can fetch grades/home
         let jwtId: number | undefined;
         try {
-          const access = await auth.getAccessToken();
+          const access = await getAccessToken();
           const payload = access ? decodeJWT(access) : null;
           jwtId = payload?.uczen_id ?? payload?.user_id ?? payload?.id ?? payload?.sub ?? undefined;
-        } catch (e) {
+        } catch {
           // ignore
         }
 
@@ -181,7 +179,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
             const avg = calculateWeightedAverage(all);
             // update the user we just set with fetched grades
             setUser({ ...fallbackUser, grades: { average: avg ?? '', behavior: gradesRes.behavior ? '' : (fallbackUser?.grades?.behavior ?? '') } });
-          } catch (e) {
+          } catch {
             // ignore grade fetch errors
           }
         }

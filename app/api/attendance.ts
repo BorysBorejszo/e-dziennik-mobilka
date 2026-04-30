@@ -1,4 +1,4 @@
-import auth, { getApiBaseUrl } from "./auth";
+import { authenticatedFetch, getApiBaseUrl } from "./auth";
 
 export type AttendanceStatus = {
     id: number;
@@ -152,7 +152,7 @@ type SubjectResolutionMaps = {
 
 const fetchListAuthenticated = async (path: string): Promise<any[]> => {
     try {
-        const res = await auth.authenticatedFetch(`${getApiBaseUrl()}${path}`, {
+        const res = await authenticatedFetch(`${getApiBaseUrl()}${path}`, {
             headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
         });
         if (!res.ok) return [];
@@ -297,7 +297,7 @@ const loadStatusesMap = async (): Promise<Map<number, string>> => {
     const map = new Map<number, string>();
     const url = `${getApiBaseUrl()}/api/statusy/`;
     try {
-        const res = await auth.authenticatedFetch(url, {
+        const res = await authenticatedFetch(url, {
             headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
         });
         if (!res.ok) return map;
@@ -317,7 +317,7 @@ const loadStatusesMap = async (): Promise<Map<number, string>> => {
 export const getAllAttendance = async (): Promise<AttendanceRecord[]> => {
     const url = `${getApiBaseUrl()}/api/frekwencja/`;
     const statusesMap = await loadStatusesMap();
-    const res = await auth.authenticatedFetch(url, {
+    const res = await authenticatedFetch(url, {
         headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
     });
     if (!res.ok) throw new Error(`Attendance fetch failed: ${res.status}`);
@@ -344,7 +344,7 @@ export const getAttendanceById = async (
     const statusesMap = await loadStatusesMap();
     const url = `${getApiBaseUrl()}/api/frekwencja/${id}/`;
     try {
-        const res = await auth.authenticatedFetch(url, {
+        const res = await authenticatedFetch(url, {
             headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
         });
         if (!res.ok) return null;
@@ -373,7 +373,7 @@ export const createAttendance = async (
 ): Promise<AttendanceRecord | null> => {
     const statusesMap = await loadStatusesMap();
     const url = `${getApiBaseUrl()}/api/frekwencja/`;
-    const res = await auth.authenticatedFetch(url, {
+    const res = await authenticatedFetch(url, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -393,7 +393,7 @@ export const updateAttendance = async (
 ): Promise<AttendanceRecord | null> => {
     const statusesMap = await loadStatusesMap();
     const url = `${getApiBaseUrl()}/api/frekwencja/${id}/`;
-    const res = await auth.authenticatedFetch(url, {
+    const res = await authenticatedFetch(url, {
         method: "PATCH",
         headers: {
             "Content-Type": "application/json",
@@ -409,7 +409,7 @@ export const updateAttendance = async (
 
 export const deleteAttendance = async (id: number): Promise<boolean> => {
     const url = `${getApiBaseUrl()}/api/frekwencja/${id}/`;
-    const res = await auth.authenticatedFetch(url, {
+    const res = await authenticatedFetch(url, {
         method: "DELETE",
         headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
     });
@@ -437,7 +437,7 @@ export const getAttendance = async (
     let list: any[] = [];
     for (const url of candidateUrls) {
         try {
-            const res = await auth.authenticatedFetch(url, {
+            const res = await authenticatedFetch(url, {
                 headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
             });
             if (!res.ok) continue;

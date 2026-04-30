@@ -1,4 +1,4 @@
-import auth, { getApiBaseUrl } from "./auth";
+import { authenticatedFetch, getApiBaseUrl } from "./auth";
 import { calculateWeightedAverage, getUserGrades, GradeItem } from "./grades";
 import {
     convertToDisplayMessage,
@@ -170,7 +170,7 @@ const fetchAnnouncements = async (
             classId && classId > 0
                 ? `${base}/api/wydarzenia/?klasa=${classId}`
                 : `${base}/api/wydarzenia/`;
-        const res = await auth.authenticatedFetch(url, {
+        const res = await authenticatedFetch(url, {
             headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
         });
         if (!res.ok) return [];

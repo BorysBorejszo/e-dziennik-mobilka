@@ -1,4 +1,4 @@
-import auth, { getApiBaseUrl } from "./auth";
+import { authenticatedFetch, getAccessToken, getApiBaseUrl } from "./auth";
 
 // API Types
 // CRITICAL: nadawca_id and odbiorca_id are Django auth user.id, NOT uczniowie.id!
@@ -80,7 +80,7 @@ const resolveUserDisplayName = async (djangoUserId: number): Promise<string | nu
 
   for (const url of candidates) {
     try {
-      const res = await auth.authenticatedFetch(url, { headers: headers() as any });
+      const res = await authenticatedFetch(url, { headers: headers() as any });
       if (!res || !res.ok) continue;
       const json = await res.json().catch(() => null);
       if (!json) continue;
@@ -233,21 +233,19 @@ export const fetchUserMessagesRemote = async (
   try {
     // Debug: check if we have an access token stored
     try {
-      const access = await auth.getAccessToken();
-      // eslint-disable-next-line no-console
+      const access = await getAccessToken();
       console.debug(
         "[fetchUserMessagesRemote] access token present=",
         !!access,
       );
-    } catch (e) {
+    } catch {
       // ignore
     }
     const hdrs = new Headers(headers());
     if (ADMIN_KEY) hdrs.set("ADMIN-KEY", ADMIN_KEY);
-    const res = await auth.authenticatedFetch(url, { headers: hdrs });
+    const res = await authenticatedFetch(url, { headers: hdrs });
     if (!res || !res.ok) {
       // Log response status for debugging
-      // eslint-disable-next-line no-console
       console.warn(
         `[fetchUserMessagesRemote] authenticatedFetch returned status=${res ? res.status : "no-response"}`,
       );
@@ -272,7 +270,6 @@ export const fetchUserMessagesRemote = async (
 
     const json = await res.json().catch(() => null);
     if (!json) {
-      // eslint-disable-next-line no-console
       console.debug(
         "[fetchUserMessagesRemote] response JSON empty or not parseable",
       );
@@ -348,7 +345,7 @@ export const fetchUserMessagesRemote = async (
 // GET all messages
 export const getAllMessages = async (): Promise<MessageRecord[]> => {
   try {
-    const response = await auth.authenticatedFetch(
+    const response = await authenticatedFetch(
       `${getApiBaseUrl()}/api/wiadomosci/`,
       { headers: headers() },
     );
@@ -387,7 +384,7 @@ export const getMessagesForUser = async (
         try {
           // eslint-disable-next-line no-console
           console.debug("[messages] trying fetch", url);
-          const res = await auth.authenticatedFetch(url, {
+          const res = await authenticatedFetch(url, {
             headers: headers() as any,
           });
           if (!res) {
@@ -400,10 +397,9 @@ export const getMessagesForUser = async (
           let text = "";
           try {
             text = await res.clone().text();
-          } catch (e) {
+          } catch {
             // ignore
           }
-          // eslint-disable-next-line no-console
           console.debug(
             "[messages] fetch",
             url,
@@ -468,7 +464,7 @@ export const fetchMessagesByRecipient = async (
 ): Promise<MessageRecord[]> => {
   try {
     const url = `${getApiBaseUrl()}/api/wiadomosci/?odbiorca=${encodeURIComponent(String(recipientId))}`;
-    const res = await auth.authenticatedFetch(url, {
+    const res = await authenticatedFetch(url, {
       headers: headers() as any,
     });
     if (!res) {
@@ -486,7 +482,7 @@ export const fetchMessagesByRecipient = async (
         "body(sample)=",
         String(txt).slice(0, 2000),
       );
-    } catch (e) {
+    } catch {
       // ignore
     }
     if (!res.ok) return [];
@@ -501,7 +497,6 @@ export const fetchMessagesByRecipient = async (
           : [];
     // If server returned no filtered items, try fetching all messages and filter locally
     if (!items || items.length === 0) {
-      // eslint-disable-next-line no-console
       console.debug(
         "[messages] server returned 0 for filtered recipient, falling back to local filter via getAllMessages",
       );
@@ -613,7 +608,7 @@ export const fetchMessagesBySender = async (
 ): Promise<MessageRecord[]> => {
   try {
     const url = `${getApiBaseUrl()}/api/wiadomosci/?nadawca=${encodeURIComponent(String(senderId))}`;
-    const res = await auth.authenticatedFetch(url, {
+    const res = await authenticatedFetch(url, {
       headers: headers() as any,
     });
     if (!res) {
@@ -630,7 +625,7 @@ export const fetchMessagesBySender = async (
         "body(sample)=",
         String(txt).slice(0, 2000),
       );
-    } catch (e) {
+    } catch {
       // ignore
     }
     if (!res.ok) return [];
@@ -645,7 +640,6 @@ export const fetchMessagesBySender = async (
           : [];
     // If server returned no filtered items, try fetching all messages and filter locally
     if (!items || items.length === 0) {
-      // eslint-disable-next-line no-console
       console.debug(
         "[messages] server returned 0 for filtered sender, falling back to local filter via getAllMessages",
       );
@@ -747,7 +741,7 @@ export const getMessageById = async (
   id: number,
 ): Promise<MessageRecord | null> => {
   try {
-    const response = await auth.authenticatedFetch(
+    const response = await authenticatedFetch(
       `${getApiBaseUrl()}/api/wiadomosci/${id}/`,
       { headers: headers() },
     );
@@ -772,7 +766,7 @@ export const createMessage = async (
       odbiorca_id: payload.odbiorca_id,
       temat: payload.temat,
     });
-    const response = await auth.authenticatedFetch(
+    const response = await authenticatedFetch(
       `${getApiBaseUrl()}/api/wiadomosci/`,
       {
         method: "POST",
@@ -800,7 +794,7 @@ export const updateMessage = async (
   payload: UpdateMessagePayload,
 ): Promise<MessageRecord | null> => {
   try {
-    const response = await auth.authenticatedFetch(
+    const response = await authenticatedFetch(
       `${getApiBaseUrl()}/api/wiadomosci/${id}/`,
       {
         method: "PUT",
@@ -821,7 +815,7 @@ export const updateMessage = async (
 // DELETE message
 export const deleteMessage = async (id: number): Promise<boolean> => {
   try {
-    const response = await auth.authenticatedFetch(
+    const response = await authenticatedFetch(
       `${getApiBaseUrl()}/api/wiadomosci/${id}/`,
       {
         method: "DELETE",

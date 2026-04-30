@@ -18,7 +18,7 @@ type RouteKey =
     | "messages"
     | "settings";
 
-const ROUTES: ReadonlyArray<{ key: RouteKey; href: string; label: string }> = [
+const ROUTES: readonly { key: RouteKey; href: string; label: string }[] = [
     { key: "index", href: "/", label: "Główna" },
     { key: "schedule", href: "/schedule", label: "Plan" },
     { key: "grades", href: "/grades", label: "Oceny" },

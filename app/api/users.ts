@@ -1,6 +1,6 @@
 // User API functions
 
-import auth, { getApiBaseUrl } from './auth';
+import { authenticatedFetch, getApiBaseUrl } from './auth';
 import { getAllMessages } from './messages';
 
 export type UserRecord = {
@@ -100,7 +100,7 @@ export const findUsernameByDjangoUserId = async (userId: number): Promise<string
 // GET all users from uczniowie table
 export const getAllUsers = async (): Promise<UserRecord[]> => {
   try {
-    const response = await auth.authenticatedFetch(`${getApiBaseUrl()}/api/uczniowie/`, { headers: headers() });
+    const response = await authenticatedFetch(`${getApiBaseUrl()}/api/uczniowie/`, { headers: headers() });
     if (!response.ok) {
       console.error('[users] Failed to fetch users:', response.status);
       return [];
@@ -123,7 +123,7 @@ export const getStudentProfile = async (
 ): Promise<UserRecord | null> => {
   if (!studentId || studentId <= 0) return null;
   try {
-    const res = await auth.authenticatedFetch(
+    const res = await authenticatedFetch(
       `${getApiBaseUrl()}/api/uczniowie/${studentId}/`,
       { headers: headers() }
     );

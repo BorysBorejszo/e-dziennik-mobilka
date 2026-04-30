@@ -161,7 +161,7 @@ export const storeTokens = async (access: string, refresh: string) => {
 export const getAccessToken = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(ACCESS_KEY);
-  } catch (e) {
+  } catch {
     return null;
   }
 };
@@ -190,7 +190,6 @@ export const getDjangoIdFromToken = async (): Promise<number | null> => {
     }
     return null;
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.debug('[auth] getDjangoIdFromToken failed', e);
     return null;
   }
@@ -199,7 +198,7 @@ export const getDjangoIdFromToken = async (): Promise<number | null> => {
 export const getRefreshToken = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(REFRESH_KEY);
-  } catch (e) {
+  } catch {
     return null;
   }
 };
@@ -256,7 +255,7 @@ export const refreshAuth = async (): Promise<LoginResponse | null> => {
       await storeTokens(newAccess, newRefresh);
       refreshPromise = null;
       return { access: newAccess, refresh: newRefresh };
-    } catch (e) {
+    } catch {
       await clearTokens();
       refreshPromise = null;
       return null;
@@ -336,7 +335,6 @@ export const getCurrentDjangoUserId = async (): Promise<number | null> => {
       if (id && !Number.isNaN(id)) return id;
     } catch (e) {
       // ignore and try next
-      // eslint-disable-next-line no-console
       console.debug('[auth] getCurrentDjangoUserId try failed for', ep, e);
       continue;
     }

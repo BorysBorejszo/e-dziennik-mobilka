@@ -1,4 +1,4 @@
-import auth, { getApiBaseUrl } from "./auth";
+import { authenticatedFetch, getApiBaseUrl } from "./auth";
 import { getHomeworkForClass, HomeworkItem } from "./homework";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ const extractList = (json: any): any[] => {
 
 const fetchListAuthenticated = async (path: string): Promise<any[]> => {
     try {
-        const res = await auth.authenticatedFetch(`${getApiBaseUrl()}${path}`, {
+        const res = await authenticatedFetch(`${getApiBaseUrl()}${path}`, {
             headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
         });
         if (!res.ok) return [];
@@ -110,7 +110,7 @@ const fetchSubstitutions = async (
         const withFilter =
             classId && classId > 0 ? `${path}?klasa=${classId}` : path;
         try {
-            const res = await auth.authenticatedFetch(
+            const res = await authenticatedFetch(
                 `${getApiBaseUrl()}${withFilter}`,
                 { headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY } }
             );

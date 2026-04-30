@@ -1,25 +1,14 @@
 
 import * as React from "react";
-import { Text, View, TouchableOpacity, Switch, ScrollView } from "react-native";
+import { Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import GlassCard from "../../components/GlassCard";
 import SafeView from "../components/SafeView";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function UstawieniaProfilu() {
 	const router = useRouter();
 
-	const [sounds, setSounds] = React.useState(true);
-	const [banners, setBanners] = React.useState(true);
-	const [schedule, setSchedule] = React.useState(false);
-
-	// single color theme for all switches to keep UI consistent
-	const primaryTrackOn = "#4F46E5"; // indigo-600
-	const primaryThumbOn = "#EDE9FE"; // indigo-100-ish
-
 	const { theme } = useTheme();
-	const bg = theme === 'dark' ? 'bg-black' : 'bg-white';
-	const textClass = theme === 'dark' ? 'text-white' : 'text-black';
 
 	return (
 		<SafeView edges={['bottom']} style={{ flex: 1, backgroundColor: theme === 'dark' ? '#000' : '#fff' }}>
@@ -33,7 +22,7 @@ export default function UstawieniaProfilu() {
 			<Text style={{ color: theme === 'dark' ? '#9CA3AF' : '#374151', marginBottom: 8, marginLeft: 16, marginTop: 72 }}>Zarządzaj ustawieniami powiadomień: dźwięki, banery i harmonogramy.</Text>
 
 			<ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: 88 }}>
-				
+
 			</ScrollView>
 		</SafeView>
 	);

@@ -22,17 +22,17 @@ export default function GlassCard({
   const { theme } = useTheme();
 
   useEffect(() => {
-    // try to dynamically require expo-blur if it's installed — fall back if not present
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require("expo-blur");
-      if (mod && mod.BlurView) {
-        setBlurView(() => mod.BlurView);
-        setBlurAvailable(true);
+    (async () => {
+      try {
+        const mod = await import("expo-blur");
+        if (mod && mod.BlurView) {
+          setBlurView(() => mod.BlurView);
+          setBlurAvailable(true);
+        }
+      } catch {
+        setBlurAvailable(false);
       }
-    } catch (e) {
-      setBlurAvailable(false);
-    }
+    })();
   }, []);
 
   const palette = getEditorialPalette(theme);

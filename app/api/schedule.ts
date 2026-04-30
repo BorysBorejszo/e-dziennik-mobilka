@@ -1,4 +1,4 @@
-import auth, { getApiBaseUrl } from "./auth";
+import { authenticatedFetch, getApiBaseUrl } from "./auth";
 
 export type Lesson = {
     id: number;
@@ -40,7 +40,7 @@ const extractList = (json: any): any[] => {
 };
 
 const fetchJsonList = async (url: string): Promise<any[]> => {
-    const res = await auth.authenticatedFetch(url, {
+    const res = await authenticatedFetch(url, {
         headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
     });
     if (!res.ok) return [];
@@ -58,7 +58,7 @@ const resolveClassIdForStudent = async (studentId: number): Promise<number | nul
 
     for (const url of candidates) {
         try {
-            const res = await auth.authenticatedFetch(url, {
+            const res = await authenticatedFetch(url, {
                 headers: { "ADMIN-KEY": DEFAULT_ADMIN_KEY },
             });
             if (!res.ok) continue;

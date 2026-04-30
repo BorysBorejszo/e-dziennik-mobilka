@@ -26,9 +26,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         if (mounted && (saved === 'light' || saved === 'dark')) {
           setTheme(saved as Theme);
         }
-      } catch (err) {
+      } catch {
         // AsyncStorage not installed or failed — ignore and keep default
-        // console.warn('AsyncStorage not available, theme will not persist', err);
       }
     }
     load();
@@ -43,7 +42,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const AsyncStorageModule = await import('@react-native-async-storage/async-storage');
       const AsyncStorage = AsyncStorageModule.default ?? AsyncStorageModule;
       await AsyncStorage.setItem('@app:theme', t);
-    } catch (err) {
+    } catch {
       // ignore if AsyncStorage not installed
     }
   };

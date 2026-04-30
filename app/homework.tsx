@@ -14,7 +14,7 @@ import {
     HomeworkItem,
     setHomeworkCompleted,
 } from "./api/homework";
-import AppSidebar from "./components/app-sidebar";
+import { AppSidebar } from "./components/app-sidebar";
 import BottomTabBar from "./components/BottomTabBar";
 import {
     EditorialSectionHeader,

@@ -72,7 +72,7 @@ export default function SubjectDetails() {
             }
         };
         load();
-    }, [user?.serverId, user?.id, subject]);
+    }, [user, subject]);
 
     const chipBg = (v: number) => {
         switch (true) {
@@ -173,7 +173,7 @@ export default function SubjectDetails() {
         }
 
         return calculateWeightedAverage(visibleGrades);
-    }, [isBehaviorSubject, semesterFilter, subjectData, visibleGrades]);
+    }, [subjectData, visibleGrades, isBehaviorSubject]);
 
     const summaryLabel =
         semesterFilter === "semester1"

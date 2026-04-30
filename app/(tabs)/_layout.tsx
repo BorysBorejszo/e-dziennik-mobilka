@@ -16,12 +16,12 @@ import {
     State,
 } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AppSidebar from "../components/app-sidebar";
+import { AppSidebar } from "../components/app-sidebar";
 import SafeView from "../components/SafeView";
 import { SidebarProvider } from "../components/ui/sidebar";
 import "../globals.css";
 import {
-  getEditorialPalette,
+    getEditorialPalette,
 } from "../theme/editorial";
 import { useTheme } from "../theme/ThemeContext";
 import AttendancePage from "./attendance";
@@ -35,14 +35,14 @@ export default function Layout() {
   const segments = useSegments();
 
   // route order must match the Tabs.Screen order below
-  const routes = [
+  const routes = React.useMemo(() => [
     "index",
     "schedule",
     "grades",
     "attendance",
     "messages",
     "settings",
-  ];
+  ], []);
 
   // determine current active segment (last segment)
   const currentSegment = segments[segments.length - 1] || "index";
@@ -117,7 +117,7 @@ export default function Layout() {
     setActiveIndex(idx);
     offset.setValue(-idx * screenWidth);
     translateX.setValue(0);
-  }, [currentSegment]);
+  }, [currentSegment, routes, screenWidth, offset, translateX]);
 
   const handleStateChange = (event: any) => {
     const ne = event.nativeEvent;

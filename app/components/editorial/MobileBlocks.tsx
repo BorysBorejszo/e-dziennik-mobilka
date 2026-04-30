@@ -4,9 +4,9 @@ import {
     StyleProp,
     StyleSheet,
     Text,
-    TextStyle,
     TextInput,
     TextInputProps,
+    TextStyle,
     TouchableOpacity,
     View,
     ViewStyle,
@@ -52,7 +52,7 @@ type SegmentedControlOption<T extends string> = {
 type SegmentedControlProps<T extends string> = {
     value: T;
     onChange: (next: T) => void;
-    options: Array<SegmentedControlOption<T>>;
+    options: SegmentedControlOption<T>[];
     labelStyle?: StyleProp<TextStyle>;
 };
 

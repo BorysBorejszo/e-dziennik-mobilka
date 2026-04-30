@@ -218,7 +218,7 @@ const buildRecentUpdates = ({
     announcements,
     now,
 }: {
-    grades: Array<{ subject: string; grade: GradeItem }>;
+    grades: { subject: string; grade: GradeItem }[];
     messages: MessageRecord[];
     announcements: RawAnnouncement[];
     now: Date;

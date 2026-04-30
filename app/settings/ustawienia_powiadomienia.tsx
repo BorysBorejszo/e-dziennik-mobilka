@@ -1,7 +1,7 @@
 
-import * as React from "react";
-import { Text, View, TouchableOpacity, Switch, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
+import * as React from "react";
+import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import GlassCard from "../../components/GlassCard";
 import SafeView from "../components/SafeView";
 import { useTheme } from "../theme/ThemeContext";
@@ -18,11 +18,10 @@ export default function UstawieniaPowiadomienia() {
 	const primaryThumbOn = "#EDE9FE"; // indigo-100-ish
 
 	const { theme } = useTheme();
-	const bg = theme === 'dark' ? 'bg-black' : 'bg-white';
-	const textClass = theme === 'dark' ? 'text-white' : 'text-black';
 	const smallTextClass = theme === 'dark' ? 'text-gray-300' : 'text-gray-600';
 	const separatorClass = theme === 'dark' ? 'border-white/6' : 'border-gray-200';
 	const switchTrackOff = theme === 'dark' ? 'rgba(255,255,255,0.12)' : '#E5E7EB';
+	const textClass = theme === 'dark' ? 'text-white' : 'text-black';
 
 	return (
 		<SafeView edges={['bottom']} style={{ flex: 1, backgroundColor: theme === 'dark' ? '#000' : '#fff' }}>

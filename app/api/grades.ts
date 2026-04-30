@@ -127,7 +127,7 @@ const normalizeDate = (raw: any): string => {
       const ms = n > 1e12 ? n : n > 1e10 ? n : n * 1000;
       const d = new Date(ms);
       if (!Number.isNaN(d.getTime())) return d.toISOString();
-    } catch (e) {
+    } catch {
       // fallthrough
     }
   }
@@ -135,7 +135,7 @@ const normalizeDate = (raw: any): string => {
   try {
     const d2 = new Date(String(raw));
     if (!Number.isNaN(d2.getTime())) return d2.toISOString();
-  } catch (e) {
+  } catch {
     // ignore
   }
   // fallback to empty string (UI will show '—' or handle missing date)
@@ -322,7 +322,7 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
 
   // Group items by subject. Prefer canonical subjects from server, but fall back to textual
   // names when the server-provided subjects list is empty or doesn't contain a match.
-  const subjectsListFromServer = await listSubjects().catch(() => [] as Array<{ id: number; nazwa: string }>);
+  const subjectsListFromServer = await listSubjects().catch(() => [] as { id: number; nazwa: string }[]);
   const hasServerSubjects = Array.isArray(subjectsListFromServer) && subjectsListFromServer.length > 0;
   const allowedIds = new Set<number>(subjectsListFromServer.map((s) => Number(s.id)));
   const idToName = new Map<number, string>(subjectsListFromServer.map((s) => [Number(s.id), s.nazwa]));
@@ -381,7 +381,6 @@ export const getUserGrades = async (userId: number): Promise<GradesResponse> => 
 
       if (!keyName) {
         // give up only when absolutely no sensible key found
-        // eslint-disable-next-line no-console
         // console.debug('[grades] skipping grade for unknown subject (no fallback)', it);
         continue;
       }
@@ -458,7 +457,7 @@ export const createGrade = async (
       const meta = await opt.json().catch(() => null);
       console.debug('[grades] options', url, meta);
     }
-  } catch (e) {
+  } catch {
     // ignore
   }
 
@@ -488,7 +487,7 @@ export const createGrade = async (
     return { wartosc: pl.value, rok_szkolny: pl.rok_szkolny ?? `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`, uczen_id: pl.userId, przedmiot: pl.subject ?? (pl.subjectId ?? null), nauczyciel_wpisujacy_id: teacher };
   };
 
-  const variants: Array<'name' | 'id' | 'both' | 'aliases'> = ['name', 'id', 'both', 'aliases'];
+  const variants: ('name' | 'id' | 'both' | 'aliases')[] = ['name', 'id', 'both', 'aliases'];
   let lastErr: any = null;
   // If user supplied a subject name but no subjectId, attempt to resolve an id
   let resolvedSubjectId: number | undefined = undefined;

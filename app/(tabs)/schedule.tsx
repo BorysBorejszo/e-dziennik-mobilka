@@ -219,7 +219,7 @@ const Schedule: React.FC = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [user?.id, user?.serverId, user?.classId]);
+    }, [user]);
 
     useEffect(() => {
         void load();

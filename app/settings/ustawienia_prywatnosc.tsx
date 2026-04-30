@@ -1,25 +1,13 @@
 
-import * as React from "react";
-import { Text, View, TouchableOpacity, Switch, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import GlassCard from "../../components/GlassCard";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import SafeView from "../components/SafeView";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function UstawieniaPrywatnosci() {
 	const router = useRouter();
 
-	const [sounds, setSounds] = React.useState(true);
-	const [banners, setBanners] = React.useState(true);
-	const [schedule, setSchedule] = React.useState(false);
-
-	// single color theme for all switches to keep UI consistent
-	const primaryTrackOn = "#4F46E5"; // indigo-600
-	const primaryThumbOn = "#EDE9FE"; // indigo-100-ish
-
 	const { theme } = useTheme();
-	const bg = theme === 'dark' ? 'bg-black' : 'bg-white';
-	const textClass = theme === 'dark' ? 'text-white' : 'text-black';
 
 	return (
 		<SafeView edges={['bottom']} style={{ flex: 1, backgroundColor: theme === 'dark' ? '#000' : '#fff' }}>

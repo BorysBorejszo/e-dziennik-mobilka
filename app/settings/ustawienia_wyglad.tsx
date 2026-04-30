@@ -1,17 +1,12 @@
 
-import * as React from "react";
-import { Text, View, TouchableOpacity, Switch, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
+import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import GlassCard from "../../components/GlassCard";
 import SafeView from "../components/SafeView";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function Ustawieniawygladu() {
 	const router = useRouter();
-
-	const [sounds, setSounds] = React.useState(true);
-	const [banners, setBanners] = React.useState(true);
-	const [schedule, setSchedule] = React.useState(false);
 
 	// single color theme for all switches to keep UI consistent
 	const primaryTrackOn = "#4F46E5"; // indigo-600

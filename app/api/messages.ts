@@ -253,12 +253,10 @@ export const fetchUserMessagesRemote = async (
       try {
         const bare = await fetch(url, { headers: headers() });
         const text = await bare.text().catch(() => "");
-        // eslint-disable-next-line no-console
         console.warn(
           `[fetchUserMessagesRemote] unauthenticated fetch status=${bare.status} body=${text?.slice(0, 1000)}`,
         );
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.warn(
           "[fetchUserMessagesRemote] unauthenticated fetch failed",
           e,
@@ -286,7 +284,6 @@ export const fetchUserMessagesRemote = async (
           : [];
 
     // Debug: log a sample of the raw items to help diagnose empty lists
-    // eslint-disable-next-line no-console
     console.debug(
       "[fetchUserMessagesRemote] items.length=",
       items.length,
@@ -336,7 +333,6 @@ export const fetchUserMessagesRemote = async (
 
     return { messages: normalized } as any;
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.error("[fetchUserMessagesRemote] unexpected error", e);
     return { messages: [] };
   }
@@ -382,7 +378,6 @@ export const getMessagesForUser = async (
 
       for (const url of candidates) {
         try {
-          // eslint-disable-next-line no-console
           console.debug("[messages] trying fetch", url);
           const res = await authenticatedFetch(url, {
             headers: headers() as any,
@@ -425,7 +420,6 @@ export const getMessagesForUser = async (
                 ? (json.messages as MessageRecord[])
                 : [];
         } catch (e) {
-          // eslint-disable-next-line no-console
           console.warn("[messages] fetch error for", url, e);
           continue;
         }

@@ -73,6 +73,20 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
 
       // Store username for later use
       await AsyncStorage.setItem(USERNAME_KEY, loggedUsername);
+
+      // Decode JWT immediately to get role and IDs
+      let jwtRole: string | undefined;
+      let jwtUczenId: number | undefined;
+      try {
+        const access = await auth.getAccessToken();
+        const payload = access ? decodeJWT(access) : null;
+        if (payload) {
+          jwtRole = payload.role;
+          jwtUczenId = payload.uczen_id ?? payload.user_id ?? payload.id ?? payload.sub;
+        }
+      } catch {
+        // ignore
+      }
       console.log("[UserGate] Stored username:", loggedUsername);
 
       // after successful auth, try to fetch the full server-side profile and use it as the app user
@@ -172,6 +186,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
           serverId: id ?? undefined,
           name: name || "Użytkownik",
           username: profileUsername,
+          role: jwtRole,
           attendance,
           grades,
         } as any;
@@ -209,6 +224,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
           serverId: jwtId ?? undefined,
           name: fallbackName || "Użytkownik",
           username: loggedUsername,
+          role: jwtRole,
           attendance: { percentage: "", present: 0, late: 0, absent: 0 },
           grades: { average: "", behavior: "" },
         } as any;

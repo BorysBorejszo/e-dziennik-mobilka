@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppSidebar from "../components/app-sidebar";
 import SafeView from "../components/SafeView";
 import { SidebarProvider } from "../components/ui/sidebar";
+import { useUser } from "../context/UserContext";
 import "../globals.css";
 import {
   getEditorialPalette,
@@ -30,19 +31,25 @@ import IndexPage from "./index";
 import MessagesPage from "./messages";
 import SchedulePage from "./schedule";
 import SettingsPage from "./settings";
+import TeacherAttendancePage from "./teacher_attendance";
+import TeacherBehaviorPage from "./teacher_behavior";
+import TeacherGradesPage from "./teacher_grades";
+import TeacherHomePage from "./teacher_home";
+
+const TEACHER_ROLES = ["nauczyciel", "teacher", "admin"];
+
+const isTeacher = (role?: string) =>
+  role ? TEACHER_ROLES.includes(role.toLowerCase()) : false;
 
 export default function Layout() {
   const segments = useSegments();
+  const { user } = useUser();
+  const teacher = isTeacher(user?.role);
 
   // route order must match the Tabs.Screen order below
-  const routes = [
-    "index",
-    "schedule",
-    "grades",
-    "attendance",
-    "messages",
-    "settings",
-  ];
+  const routes = teacher
+    ? ["teacher_home", "schedule", "teacher_grades", "teacher_behavior", "teacher_attendance", "messages"]
+    : ["index", "schedule", "grades", "attendance", "messages", "settings"];
 
   // determine current active segment (last segment)
   const currentSegment = segments[segments.length - 1] || "index";
@@ -250,14 +257,24 @@ export default function Layout() {
                     flexDirection: "row",
                   }}
                 >
-                  {[
-                    IndexPage,
-                    SchedulePage,
-                    GradesPage,
-                    AttendancePage,
-                    MessagesPage,
-                    SettingsPage,
-                  ].map((Page, idx) => (
+                  {(teacher
+                    ? [
+                        (props: any) => <TeacherHomePage {...props} onNavigate={navigateToIndex} />,
+                        SchedulePage,
+                        TeacherGradesPage,
+                        TeacherBehaviorPage,
+                        TeacherAttendancePage,
+                        MessagesPage,
+                      ]
+                    : [
+                        IndexPage,
+                        SchedulePage,
+                        GradesPage,
+                        AttendancePage,
+                        MessagesPage,
+                        SettingsPage,
+                      ]
+                  ).map((Page, idx) => (
                     // ensure each page fills available height so inner ScrollViews can size correctly
                     <View
                       key={routes[idx]}
@@ -305,35 +322,26 @@ export default function Layout() {
                       ]}
                     >
                       <View style={styles.tabIconWrap}>
-                        {route === "index" && (
+                        {(route === "index" || route === "teacher_home") && (
                           <Entypo name="home" size={22} color={iconColor} />
                         )}
                         {route === "schedule" && (
-                          <Entypo
-                            name="calendar"
-                            size={22}
-                            color={iconColor}
-                          />
+                          <Entypo name="calendar" size={22} color={iconColor} />
                         )}
                         {route === "settings" && (
                           <Entypo name="cog" size={22} color={iconColor} />
                         )}
-                        {route === "grades" && (
-                          <Ionicons
-                            name="ribbon-outline"
-                            size={23}
-                            color={iconColor}
-                          />
+                        {(route === "grades" || route === "teacher_grades") && (
+                          <Ionicons name="ribbon-outline" size={23} color={iconColor} />
                         )}
-                        {route === "attendance" && (
-                          <Ionicons
-                            name="stats-chart-outline"
-                            size={23}
-                            color={iconColor}
-                          />
+                        {(route === "attendance" || route === "teacher_attendance") && (
+                          <Ionicons name="stats-chart-outline" size={23} color={iconColor} />
                         )}
                         {route === "messages" && (
                           <Entypo name="chat" size={22} color={iconColor} />
+                        )}
+                        {route === "teacher_behavior" && (
+                          <Ionicons name="star-outline" size={23} color={iconColor} />
                         )}
                       </View>
                       <Text
@@ -347,17 +355,16 @@ export default function Layout() {
                           },
                         ]}
                       >
-                        {route === "index"
-                          ? "Główna"
-                          : route === "schedule"
-                            ? "Plan"
-                            : route === "settings"
-                              ? "Ustawienia"
-                              : route === "grades"
-                                ? "Oceny"
-                                : route === "attendance"
-                                  ? "Frekwencja"
-                                  : "Wiadomości"}
+                        {route === "index" ? "Główna"
+                          : route === "teacher_home" ? "Główna"
+                          : route === "schedule" ? "Plan"
+                          : route === "settings" ? "Ustawienia"
+                          : route === "grades" ? "Oceny"
+                          : route === "teacher_grades" ? "Oceny"
+                          : route === "attendance" ? "Frekwencja"
+                          : route === "teacher_attendance" ? "Frekwencja"
+                          : route === "teacher_behavior" ? "Zachowanie"
+                          : "Wiadomości"}
                       </Text>
                     </View>
                   </TouchableOpacity>

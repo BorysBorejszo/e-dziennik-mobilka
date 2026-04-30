@@ -7,7 +7,7 @@
  * const tokens = await login('user', 'pass');
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type LoginResponse = {
   access: string;
@@ -19,7 +19,7 @@ export class ApiError extends Error {
   details?: string;
   constructor(message: string, status?: number, details?: string) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.status = status;
     this.details = details;
   }
@@ -28,30 +28,33 @@ export class ApiError extends Error {
 // Simple JWT decode helper
 export const decodeJWT = (token: string): any => {
   try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
     const jsonPayload = decodeURIComponent(
       atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
     );
     return JSON.parse(jsonPayload);
   } catch (e) {
     // Fallback if atob is not available or fails
-    console.warn('JWT decode failed', e);
+    console.warn("JWT decode failed", e);
     return null;
   }
 };
 
 // Polyfill atob if needed (for React Native environment)
-if (typeof global.atob === 'undefined') {
+if (typeof global.atob === "undefined") {
   global.atob = (input: string) => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-    let str = input.replace(/=+$/, '');
-    let output = '';
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    let str = input.replace(/=+$/, "");
+    let output = "";
     if (str.length % 4 === 1) {
-      throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
+      throw new Error(
+        "'atob' failed: The string to be decoded is not correctly encoded.",
+      );
     }
     for (
       let bc = 0, bs = 0, buffer, i = 0;
@@ -68,13 +71,13 @@ if (typeof global.atob === 'undefined') {
 
 // default to the remote dziennik server
 // default to the remote dziennik server (prefer HTTPS)
-let BASE_URL = 'https://dziennik.polandcentral.cloudapp.azure.com';
-const ACCESS_KEY = '@e-dziennik:access';
-const REFRESH_KEY = '@e-dziennik:refresh';
+let BASE_URL = "https://modea.polandcentral.cloudapp.azure.com";
+const ACCESS_KEY = "@e-dziennik:access";
+const REFRESH_KEY = "@e-dziennik:refresh";
 
 export const setApiBaseUrl = (url: string) => {
   // Remove trailing slash for consistency
-  BASE_URL = url.replace(/\/$/, '');
+  BASE_URL = url.replace(/\/$/, "");
 };
 
 export const getApiBaseUrl = () => BASE_URL;
@@ -83,12 +86,15 @@ export const getApiBaseUrl = () => BASE_URL;
  * Send credentials to the server and return access/refresh tokens.
  * Also persists tokens to AsyncStorage.
  */
-export const login = async (username: string, password: string): Promise<LoginResponse> => {
+export const login = async (
+  username: string,
+  password: string,
+): Promise<LoginResponse> => {
   const url = `${BASE_URL}/api/auth/login/`;
 
   const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
 
@@ -101,12 +107,20 @@ export const login = async (username: string, password: string): Promise<LoginRe
     } catch {
       // keep raw text
     }
-    throw new ApiError(`Login failed (${res.status}): ${text}`, res.status, text);
+    throw new ApiError(
+      `Login failed (${res.status}): ${text}`,
+      res.status,
+      text,
+    );
   }
 
   const data = await res.json();
-  if (!data || typeof data.access !== 'string' || typeof data.refresh !== 'string') {
-    throw new Error('Login response has unexpected shape');
+  if (
+    !data ||
+    typeof data.access !== "string" ||
+    typeof data.refresh !== "string"
+  ) {
+    throw new Error("Login response has unexpected shape");
   }
 
   await storeTokens(data.access, data.refresh);
@@ -117,14 +131,18 @@ export const login = async (username: string, password: string): Promise<LoginRe
  * Register a new account. Expects the backend to return the same { access, refresh } shape.
  * If registration succeeds tokens are persisted the same as login.
  */
-export const register = async (username: string, password: string, extra: Record<string, any> = {}): Promise<LoginResponse> => {
+export const register = async (
+  username: string,
+  password: string,
+  extra: Record<string, any> = {},
+): Promise<LoginResponse> => {
   const url = `${BASE_URL}/api/auth/register/`;
 
   const body = JSON.stringify({ username, password, ...extra });
 
   const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body,
   });
 
@@ -137,12 +155,20 @@ export const register = async (username: string, password: string, extra: Record
     } catch {
       // keep raw
     }
-    throw new ApiError(`Registration failed (${res.status}): ${text}`, res.status, text);
+    throw new ApiError(
+      `Registration failed (${res.status}): ${text}`,
+      res.status,
+      text,
+    );
   }
 
   const data = await res.json();
-  if (!data || typeof data.access !== 'string' || typeof data.refresh !== 'string') {
-    throw new Error('Registration response has unexpected shape');
+  if (
+    !data ||
+    typeof data.access !== "string" ||
+    typeof data.refresh !== "string"
+  ) {
+    throw new Error("Registration response has unexpected shape");
   }
 
   await storeTokens(data.access, data.refresh);
@@ -151,10 +177,13 @@ export const register = async (username: string, password: string, extra: Record
 
 export const storeTokens = async (access: string, refresh: string) => {
   try {
-    await AsyncStorage.multiSet([[ACCESS_KEY, access], [REFRESH_KEY, refresh]]);
+    await AsyncStorage.multiSet([
+      [ACCESS_KEY, access],
+      [REFRESH_KEY, refresh],
+    ]);
   } catch (e) {
     // non-fatal; tokens remain in memory only
-    console.warn('Failed to persist tokens', e);
+    console.warn("Failed to persist tokens", e);
   }
 };
 
@@ -172,17 +201,26 @@ export const getDjangoIdFromToken = async (): Promise<number | null> => {
     const token = await getAccessToken();
     if (!token) return null;
     const payload = decodeJWT(token);
-    if (!payload || typeof payload !== 'object') return null;
+    if (!payload || typeof payload !== "object") return null;
 
     // Candidate keys that might hold Django user id in different deployments
-    const candidates = ['user_id', 'id', 'uczen_id', 'django_user_id', 'auth_user_id', 'sub', 'pk', 'user'];
+    const candidates = [
+      "user_id",
+      "id",
+      "uczen_id",
+      "django_user_id",
+      "auth_user_id",
+      "sub",
+      "pk",
+      "user",
+    ];
     for (const key of candidates) {
       if (key in payload) {
         const val = payload[key];
         const num = Number(val);
         if (!Number.isNaN(num) && num > 0) return num;
         // payload.user may be an object
-        if (key === 'user' && typeof val === 'object' && val !== null) {
+        if (key === "user" && typeof val === "object" && val !== null) {
           const inner = Number(val.id ?? val.user_id ?? val.pk ?? null);
           if (!Number.isNaN(inner) && inner > 0) return inner;
         }
@@ -191,7 +229,7 @@ export const getDjangoIdFromToken = async (): Promise<number | null> => {
     return null;
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.debug('[auth] getDjangoIdFromToken failed', e);
+    console.debug("[auth] getDjangoIdFromToken failed", e);
     return null;
   }
 };
@@ -208,7 +246,7 @@ export const clearTokens = async () => {
   try {
     await AsyncStorage.multiRemove([ACCESS_KEY, REFRESH_KEY]);
   } catch (e) {
-    console.warn('Failed to clear tokens', e);
+    console.warn("Failed to clear tokens", e);
   }
 };
 
@@ -231,8 +269,8 @@ export const refreshAuth = async (): Promise<LoginResponse | null> => {
     const url = `${BASE_URL}/api/auth/refresh/`;
     try {
       const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh }),
       });
 
@@ -245,14 +283,15 @@ export const refreshAuth = async (): Promise<LoginResponse | null> => {
 
       const data = await res.json();
       // Some backends return { access } only; others may return both
-      if (!data || typeof data.access !== 'string') {
+      if (!data || typeof data.access !== "string") {
         await clearTokens();
         refreshPromise = null;
         return null;
       }
 
       const newAccess = data.access;
-      const newRefresh = typeof data.refresh === 'string' ? data.refresh : refresh;
+      const newRefresh =
+        typeof data.refresh === "string" ? data.refresh : refresh;
       await storeTokens(newAccess, newRefresh);
       refreshPromise = null;
       return { access: newAccess, refresh: newRefresh };
@@ -270,11 +309,17 @@ export const refreshAuth = async (): Promise<LoginResponse | null> => {
  * Wrapper around fetch which attaches Authorization header (Bearer access).
  * On 401 it will attempt to refresh tokens once and retry the request.
  */
-export const authenticatedFetch = async (input: RequestInfo, init: RequestInit = {}) => {
+export const authenticatedFetch = async (
+  input: RequestInfo,
+  init: RequestInit = {},
+) => {
   const tryFetch = async (access?: string) => {
     const headers = new Headers(init.headers || {});
-    headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json');
-    if (access) headers.set('Authorization', `Bearer ${access}`);
+    headers.set(
+      "Content-Type",
+      headers.get("Content-Type") ?? "application/json",
+    );
+    if (access) headers.set("Authorization", `Bearer ${access}`);
 
     return fetch(input, { ...init, headers });
   };
@@ -313,18 +358,20 @@ export default {
 // Returns numeric id when found or null.
 export const getCurrentDjangoUserId = async (): Promise<number | null> => {
   const endpoints = [
-    '/api/auth/user/',
-    '/api/auth/me/',
-    '/api/users/me/',
-    '/api/user/',
-    '/api/profile/',
-    '/api/uzytkownicy/me/',
-    '/api/uczniowie/me/',
+    "/api/auth/user/",
+    "/api/auth/me/",
+    "/api/users/me/",
+    "/api/user/",
+    "/api/profile/",
+    "/api/uzytkownicy/me/",
+    "/api/uczniowie/me/",
   ];
 
   for (const ep of endpoints) {
     try {
-      const url = ep.startsWith('http') ? ep : `${getApiBaseUrl().replace(/\/$/, '')}${ep}`;
+      const url = ep.startsWith("http")
+        ? ep
+        : `${getApiBaseUrl().replace(/\/$/, "")}${ep}`;
       const res = await authenticatedFetch(url);
       if (!res || !res.ok) continue;
       const json = await res.json().catch(() => null);
@@ -332,12 +379,19 @@ export const getCurrentDjangoUserId = async (): Promise<number | null> => {
 
       // candidate shapes
       const candidate = json.user ?? json.uczen ?? json;
-      const id = Number(candidate.user_id ?? candidate.id ?? candidate.pk ?? candidate.uczen_id ?? candidate.django_user_id ?? null);
+      const id = Number(
+        candidate.user_id ??
+          candidate.id ??
+          candidate.pk ??
+          candidate.uczen_id ??
+          candidate.django_user_id ??
+          null,
+      );
       if (id && !Number.isNaN(id)) return id;
     } catch (e) {
       // ignore and try next
       // eslint-disable-next-line no-console
-      console.debug('[auth] getCurrentDjangoUserId try failed for', ep, e);
+      console.debug("[auth] getCurrentDjangoUserId try failed for", ep, e);
       continue;
     }
   }

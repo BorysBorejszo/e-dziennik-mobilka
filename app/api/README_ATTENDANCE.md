@@ -6,13 +6,14 @@ Moduł `attendance.ts` zapewnia pełną obsługę API frekwencji dla e-dziennika
 
 ## Konfiguracja
 
-- **Base URL**: `http://dziennik.polandcentral.cloudapp.azure.com`
+- **Base URL**: `http://modea.polandcentral.cloudapp.azure.com`
 - **Autoryzacja**: Header `ADMIN-KEY` (obecnie hardcoded, można przenieść do `.env`)
 - **Format danych**: JSON
 
 ## Typy TypeScript
 
 ### `AttendanceStatus`
+
 ```typescript
 {
   id: number;
@@ -21,6 +22,7 @@ Moduł `attendance.ts` zapewnia pełną obsługę API frekwencji dla e-dziennika
 ```
 
 ### `AttendanceRecord`
+
 ```typescript
 {
   id: number;
@@ -34,6 +36,7 @@ Moduł `attendance.ts` zapewnia pełną obsługę API frekwencji dla e-dziennika
 ```
 
 ### `AttendanceEntry`
+
 ```typescript
 {
   date: string; // ISO date
@@ -47,25 +50,33 @@ Moduł `attendance.ts` zapewnia pełną obsługę API frekwencji dla e-dziennika
 ### GET - Pobieranie danych
 
 #### `getAllAttendance()`
+
 Pobiera wszystkie wpisy frekwencji.
+
 ```typescript
 const records = await getAllAttendance();
 ```
 
 #### `getAttendanceByStudent(uczenId: number)`
+
 Pobiera frekwencję dla konkretnego ucznia.
+
 ```typescript
 const records = await getAttendanceByStudent(1);
 ```
 
 #### `getAttendanceByDate(date: string)`
+
 Pobiera frekwencję dla konkretnej daty.
+
 ```typescript
-const records = await getAttendanceByDate('2025-11-24');
+const records = await getAttendanceByDate("2025-11-24");
 ```
 
 #### `getAttendanceById(id: number)`
+
 Pobiera pojedynczy wpis frekwencji.
+
 ```typescript
 const record = await getAttendanceById(1);
 ```
@@ -73,33 +84,39 @@ const record = await getAttendanceById(1);
 ### POST - Tworzenie
 
 #### `createAttendance(payload)`
+
 Tworzy nowy wpis frekwencji.
+
 ```typescript
 const newRecord = await createAttendance({
-  data: '2025-11-24',
+  data: "2025-11-24",
   uczen_id: 1,
   godzina_lekcyjna_id: 2,
-  status_id: 1 // 1=Obecny, 2=Nieobecny, 3=Spóźniony, 4=Usprawiedliwiony
+  status_id: 1, // 1=Obecny, 2=Nieobecny, 3=Spóźniony, 4=Usprawiedliwiony
 });
 ```
 
 ### PUT - Aktualizacja
 
 #### `updateAttendance(id, payload)`
+
 Aktualizuje istniejący wpis.
+
 ```typescript
 const updated = await updateAttendance(1, {
-  data: '2025-11-24',
+  data: "2025-11-24",
   uczen_id: 1,
   godzina_lekcyjna_id: 2,
-  status_id: 2
+  status_id: 2,
 });
 ```
 
 ### DELETE - Usuwanie
 
 #### `deleteAttendance(id)`
+
 Usuwa wpis frekwencji.
+
 ```typescript
 const success = await deleteAttendance(1);
 ```
@@ -107,7 +124,9 @@ const success = await deleteAttendance(1);
 ### Legacy
 
 #### `getUserAttendance(userId: number)`
+
 Funkcja kompatybilna z istniejącym UI. Zwraca dane w formacie `AttendanceResponse`.
+
 ```typescript
 const { recent } = await getUserAttendance(1);
 ```
@@ -115,6 +134,7 @@ const { recent } = await getUserAttendance(1);
 ## Mapowanie statusów
 
 Status ID są automatycznie mapowane na nazwy:
+
 - `1` → "Obecny"
 - `2` → "Nieobecny"
 - `3` → "Spóźniony"
@@ -125,20 +145,23 @@ Mapowanie jest cache'owane dla wydajności.
 ## Przykłady curl
 
 ### Pobierz frekwencję ucznia
+
 ```powershell
-curl.exe -X GET "http://dziennik.polandcentral.cloudapp.azure.com/api/frekwencja/?uczen_id=1" `
+curl.exe -X GET "http://modea.polandcentral.cloudapp.azure.com/api/frekwencja/?uczen_id=1" `
   -H "ADMIN-KEY: YOUR_KEY_HERE"
 ```
 
 ### Pobierz frekwencję z konkretnej daty
+
 ```powershell
-curl.exe -X GET "http://dziennik.polandcentral.cloudapp.azure.com/api/frekwencja/?date=2025-11-24" `
+curl.exe -X GET "http://modea.polandcentral.cloudapp.azure.com/api/frekwencja/?date=2025-11-24" `
   -H "ADMIN-KEY: YOUR_KEY_HERE"
 ```
 
 ### Utwórz wpis
+
 ```powershell
-curl.exe -X POST "http://dziennik.polandcentral.cloudapp.azure.com/api/frekwencja/" `
+curl.exe -X POST "http://modea.polandcentral.cloudapp.azure.com/api/frekwencja/" `
   -H "ADMIN-KEY: YOUR_KEY_HERE" `
   -H "Content-Type: application/json" `
   -d '{\"data\":\"2025-11-24\", \"uczen_id\": 1, \"godzina_lekcyjna_id\": 2, \"status_id\": 1}'
@@ -149,8 +172,9 @@ curl.exe -X POST "http://dziennik.polandcentral.cloudapp.azure.com/api/frekwencj
 ⚠️ **UWAGA**: `ADMIN-KEY` jest obecnie hardcoded w kodzie. W produkcji zaleca się:
 
 1. Utworzyć plik `.env`:
+
 ```env
-EXPO_PUBLIC_API_URL=http://dziennik.polandcentral.cloudapp.azure.com
+EXPO_PUBLIC_API_URL=http://modea.polandcentral.cloudapp.azure.com
 ADMIN_KEY=your_secret_key_here
 ```
 
@@ -161,6 +185,7 @@ ADMIN_KEY=your_secret_key_here
 ## UI - Zakładka Frekwencji
 
 Widok `app/(tabs)/attendance.tsx` oferuje:
+
 - Wyświetlanie statystyk frekwencji (procent, obecności, spóźnienia, nieobecności)
 - Listę ostatnich wpisów frekwencji
 - Filtrowanie po dacie (RRRR-MM-DD)
